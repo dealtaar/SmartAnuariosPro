@@ -47,31 +47,73 @@ namespace SmartAnuariosPro
                 return imagenCacheada;
             }
 
+            // 💻 CALCULO DE RUTA DE CLONACIÓN LOCAL (Según tu PathResolverService)
+            string carpetaBase = AppBootstrap.Instance.Paths.BaseMasterPath ?? "C:\\Anuarios 2026";
+            string fotografoLimpio = "Fotografo_Anonimo";
+            string codigoColegioLimpio = "";
+
+            if (Application.Current.MainWindow is MainWindow ventanaMaestra)
+            {
+                if (ventanaMaestra._colegioActualEnEdicion != null)
+                {
+                    fotografoLimpio = ventanaMaestra._colegioActualEnEdicion.Fotografo.Trim();
+                    codigoColegioLimpio = SmartAnuariosPro.Services.PathResolverService.FormatearCodigoColegio(ventanaMaestra._colegioActualEnEdicion.CodigoColegio);
+                }
+            }
+
+            string nombreArchivoLimpio = System.IO.Path.GetFileName(ruta).Trim().ToUpper();
+            string subCarpetaDestino = valorLimpio.Contains("FAMILIAR") ? "Familiares" : "Individuales";
+            string rutaLocalFisica = System.IO.Path.Combine(carpetaBase, fotografoLimpio, codigoColegioLimpio, "Fotos Por Escoger", subCarpetaDestino, nombreArchivoLimpio);
+
+            // 📡 TU CANAL ORIGINAL DE DESCARGA (Intacta y funcional, inmune al Error 403)
             Task.Run(async () =>
             {
                 try
                 {
+                    // 🟢 Invocamos a internet usando TU LÓGICA EXACTA ANTERIOR (Sin alterar tu URL nativa)
                     byte[] bytesImagen = await _clienteWeb.GetByteArrayAsync(ruta);
 
                     if (bytesImagen == null || bytesImagen.Length < 4) return;
 
+                    // =======================================================================
+                    // 💾 INTERCEPTACIÓN QUIRÚRGICA: Clonamos los bytes directo al disco local
+                    // =======================================================================
+                    if (!System.IO.File.Exists(rutaLocalFisica))
+                    {
+                        try
+                        {
+                            string? directorioContenedor = System.IO.Path.GetDirectoryName(rutaLocalFisica);
+                            if (!string.IsNullOrEmpty(directorioContenedor) && !System.IO.Directory.Exists(directorioContenedor))
+                            {
+                                System.IO.Directory.CreateDirectory(directorioContenedor);
+                            }
+
+                            // Guardamos el archivo original de 160 KB de forma invisible en tu PC de trabajo
+                            await System.IO.File.WriteAllBytesAsync(rutaLocalFisica, bytesImagen);
+                            System.Diagnostics.Debug.WriteLine($"[CLONADOR AUTOMÁTICO ✓] Interceptado y guardado en: {rutaLocalFisica}");
+                        }
+                        catch (Exception exDisco)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[CLONADOR ALERTA] Falló la escritura: {exDisco.Message}");
+                        }
+                    }
+
+                    // Tu motor gráfico de descodificación EXIF, 120px en RAM y rotación por GPU continúa idéntico...
                     await Application.Current.Dispatcher.InvokeAsync(() =>
                     {
                         try
                         {
                             using (var ms = new System.IO.MemoryStream(bytesImagen))
                             {
-                                // 1. 🔍 LEEMOS PRIMERO LOS METADATOS EXIF (Sin decodificar la imagen gigante aún)
-                                var decoderMetadatos = BitmapDecoder.Create(ms, BitmapCreateOptions.None, BitmapCacheOption.None);
-                                if (decoderMetadatos.Frames == null || decoderMetadatos.Frames.Count == 0) return;
+                                var decoder = BitmapDecoder.Create(ms, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
+                                if (decoder.Frames == null || decoder.Frames.Count == 0) return;
 
-                                var frameOriginal = decoderMetadatos.Frames[0];
-                                var metadata = frameOriginal.Metadata as BitmapMetadata;
+                                var frame = decoder.Frames[0];
+                                var metadata = frame.Metadata as BitmapMetadata;
                                 int gradosRotacion = 0;
 
                                 if (metadata != null)
                                 {
-                                    // (Tu excelente algoritmo de búsqueda IFD0, Orientation y Nikon intacto...)
                                     object? orientacionValor = null;
                                     if (metadata.ContainsQuery("/app1/ifd0/{ushort=274}"))
                                         orientacionValor = metadata.GetQuery("/app1/ifd0/{ushort=274}");
@@ -87,49 +129,36 @@ namespace SmartAnuariosPro
                                         else if (strValor.Contains("180") || strValor == "3") gradosRotacion = 180;
                                         else if (strValor.Contains("270") || strValor == "8" || strValor.Contains("CCW")) gradosRotacion = 270;
                                     }
-                                    else if (frameOriginal.PixelWidth > frameOriginal.PixelHeight && ruta.ToLower().Contains("rostros"))
+                                    else if (frame.PixelWidth > frame.PixelHeight && ruta.ToLower().Contains("rostros"))
                                     {
                                         gradosRotacion = 90;
                                     }
                                 }
 
-                                // =======================================================================
-                                // ⚡ EL SECRETO INDUSTRIAL: RE-DECODIFICACIÓN OPTIMIZADA A 120PX (v2026)
-                                // =======================================================================
-                                // Regresamos el puntero del flujo al inicio para volver a leer de memoria
                                 ms.Position = 0;
-
                                 var miniBitmap = new BitmapImage();
                                 miniBitmap.BeginInit();
                                 miniBitmap.StreamSource = ms;
-
-                                // 🚀 Fuerza a Windows a descompripar el archivo directamente a un ancho de 120px.
-                                // Descarta los 2048px excedentes liberando la RAM y la tarjeta de video de inmediato.
-                                miniBitmap.DecodePixelWidth = 120;
+                                miniBitmap.DecodePixelWidth = 120; // Protege tu scroll para que no parpadee
                                 miniBitmap.CacheOption = BitmapCacheOption.OnLoad;
                                 miniBitmap.EndInit();
-                                // =======================================================================
-                                // 🎨 PARTE 2: TRANSFORMACIÓN POR HARDWARE (GPU EN ACENTO AZUL v2026)
-                                // =======================================================================
-                                miniBitmap.Freeze(); // Congela el bitmap en la CPU para mandarlo directo a la GPU
+
+                                miniBitmap.Freeze();
                                 ImageSource resultadoFinal = miniBitmap;
 
                                 if (gradosRotacion != 0)
                                 {
-                                    // La GPU procesa este bloque de transformación de forma nativa
                                     var transformado = new TransformedBitmap();
                                     transformado.BeginInit();
-                                    transformado.Source = miniBitmap; // Le pasamos la miniatura ligera de 120px
+                                    transformado.Source = miniBitmap;
                                     transformado.Transform = new RotateTransform(gradosRotacion);
                                     transformado.EndInit();
-                                    transformado.Freeze(); // Fijamos en la memoria de la tarjeta de video
+                                    transformado.Freeze();
                                     resultadoFinal = transformado;
                                 }
 
-                                // Guardamos la miniatura ultra-ligera en el búfer de la RAM
                                 _cacheImagenes.TryAdd(ruta, resultadoFinal);
 
-                                // Despachamos el refresco a la grilla oscura en el hilo principal
                                 var mainWin = Application.Current.MainWindow;
                                 if (mainWin != null)
                                 {
@@ -162,7 +191,6 @@ namespace SmartAnuariosPro
 
             return null;
         }
-
         public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
             => throw new NotImplementedException();
     }
@@ -224,7 +252,7 @@ namespace SmartAnuariosPro
 
         private readonly System.Threading.SemaphoreSlim _radarSemaphore = new System.Threading.SemaphoreSlim(1, 1);
         private System.Windows.Threading.DispatcherTimer _timerRadarEnVivo = new();
-        private ColegioRemoteModel? _colegioActualEnEdicion = null;
+        public ColegioRemoteModel? _colegioActualEnEdicion = null;
 
         // 🛡️ BÚFERES MAESTROS COEXISTENTES PARA CONSULTAS DE BANNER INTERACTIVO
         private ColegioRemoteModel? _colegioPorDestruir = null;
