@@ -277,10 +277,13 @@ namespace SmartAnuariosPro.Services
         {
             var lista = new System.Collections.Generic.List<AlumnoRemoteModel>();
 
-            // SQL limpio apuntando a los nombres exactos de tu volcado de producción
-            string query = @"SELECT id, seccion_id, codigo_colegio, numero_orden, nombre_completo, completado, acceso_liberado, 
-                            foto_rostro, foto_familiar, preferencias, comida_favorita, profesion, fecha_nacimiento, sexo 
-                     FROM alumnos WHERE codigo_colegio = @codigo ORDER BY numero_orden ASC";
+            // 🟢 SQL EVOLUCIONADO: Unificamos tablas para traer el fotógrafo asignado al colegio de cada alumno
+            string query = @"SELECT a.id, a.seccion_id, a.codigo_colegio, a.numero_orden, a.nombre_completo, a.completado, 
+                            a.acceso_liberado, a.foto_rostro, a.foto_familiar, a.preferencias, a.comida_favorita, 
+                            a.profesion, a.fecha_nacimiento, a.sexo, c.fotografo
+                     FROM alumnos a
+                     INNER JOIN colegios c ON a.codigo_colegio = c.codigo_colegio
+                     WHERE a.codigo_colegio = @codigo ORDER BY a.numero_orden ASC";
 
             using (var conn = new MySqlConnection(_connectionString))
             {
@@ -302,35 +305,28 @@ namespace SmartAnuariosPro.Services
                                     NumeroOrden = reader.GetInt32("numero_orden"),
                                     NombreCompleto = reader.GetString("nombre_completo"),
 
+                                    // 🟢 CAPTURA EN FILA: Inyectamos el fotógrafo real del registro indexado
+                                    Fotografo = reader.IsDBNull(reader.GetOrdinal("fotografo")) ? "Fotógrafo" : reader.GetString("fotografo"),
+
                                     Hobbies = reader.IsDBNull(reader.GetOrdinal("preferencias")) ? string.Empty : reader.GetString("preferencias"),
                                     ComidaFav = reader.IsDBNull(reader.GetOrdinal("comida_favorita")) ? string.Empty : reader.GetString("comida_favorita"),
                                     Profesion = reader.IsDBNull(reader.GetOrdinal("profesion")) ? string.Empty : reader.GetString("profesion"),
 
-                                    // 👤 FOTO ROSTRO: Si está vacío o nulo en MySQL, se inicializa con la cadena exacta de tu combo visual
                                     FotoRostro = reader.IsDBNull(reader.GetOrdinal("foto_rostro")) || string.IsNullOrWhiteSpace(reader.GetString("foto_rostro"))
-                                                 ? "-- Ninguna --"
-                                                 : reader.GetString("foto_rostro"),
+                                                 ? "-- Ninguna --" : reader.GetString("foto_rostro"),
 
-                                    // 👨‍👩‍👧 FOTO FAMILIAR: Si está vacío o nulo en MySQL, se inicializa con la cadena exacta de tu combo visual
                                     FotoFamiliar = reader.IsDBNull(reader.GetOrdinal("foto_familiar")) || string.IsNullOrWhiteSpace(reader.GetString("foto_familiar"))
-                                                   ? "-- Ninguna --"
-                                                   : reader.GetString("foto_familiar"),
+                                                   ? "-- Ninguna --" : reader.GetString("foto_familiar"),
 
                                     AccesoLiberado = reader.GetInt32("acceso_liberado"),
-
                                     FechaNacimiento = reader.IsDBNull(reader.GetOrdinal("fecha_nacimiento")) ? null : (DateTime?)reader.GetDateTime("fecha_nacimiento"),
-
-                                    // 🚻 SEXO: Si está vacío o nulo en MySQL, se inicializa con la cadena exacta de tu combo visual
                                     Sexo = reader.IsDBNull(reader.GetOrdinal("sexo")) || string.IsNullOrWhiteSpace(reader.GetString("sexo"))
-                                           ? "-- Elige --"
-                                           : reader.GetString("sexo"),
+                                           ? "-- Elige --" : reader.GetString("sexo"),
                                 };
-
 
                                 lista.Add(alumno);
                             }
                         }
-
                     }
                 }
                 catch (Exception ex)
@@ -612,6 +608,7 @@ namespace SmartAnuariosPro.Services
                 OnPropertyChanged(nameof(FotoFamiliar));
             }
         }
+        public string Fotografo { get; set; } = string.Empty;
 
         // Traductores dinámicos inmediatos para las columnas del DataGrid
         public string TextoEstadoWeb => AccesoLiberado == 1 ? "🟢 Abierto para Padre" : "🔴 Bloqueado (Completado)";
@@ -623,7 +620,6 @@ namespace SmartAnuariosPro.Services
         public string RutaFotoRostro => ObtenerRutaImagenLocal("rostros", FotoRostro);
         public string RutaFotoFamiliar => ObtenerRutaImagenLocal("familiares", FotoFamiliar);
 
-        // 🌐 CONFIGURACIÓN DEFINITIVA CON FILTRO ANTI-NULL CORREGIDO
         // 🟢 CONFIGURACIÓN MAESTRA DE RUTAS EN ESPEJO CON TU SCRIPT PHP
         private string ObtenerRutaImagenLocal(string subCarpeta, string archivo)
         {
@@ -644,7 +640,8 @@ namespace SmartAnuariosPro.Services
             // Asegúrate de que subCarpeta reciba "rostros" o "familiares" según corresponda
             string urlFinal = $"https://pixeleduca.com/SmartAnuarios/Fotos/{CodigoColegio.Trim()}/{subCarpeta}/{archivo.Trim()}";
 
-            System.Diagnostics.Debug.WriteLine($"[PHP ESPEJO ✓] Apuntando a ruta real de imagen: {urlFinal}");
+            // 🟢 SILENCIADO PARA ELIMINAR LA RÁFAGA DE TEXTO EN LA CONSOLA (v2026)
+            // System.Diagnostics.Debug.WriteLine($"[PHP ESPEJO ➔] Apuntando a ruta real de imagen: {urlFinal}");
 
             return urlFinal;
         }
@@ -678,6 +675,17 @@ namespace SmartAnuariosPro.Services
                 public void NotifyExternalPropertyChange(string propertyName)
         {
             OnPropertyChanged(propertyName);
+        }
+
+        private bool _isFamiliarExcluido = false;
+        public bool IsFamiliarExcluido
+        {
+            get => _isFamiliarExcluido;
+            set
+            {
+                _isFamiliarExcluido = value;
+                NotifyExternalPropertyChange(nameof(IsFamiliarExcluido));
+            }
         }
     }
 }

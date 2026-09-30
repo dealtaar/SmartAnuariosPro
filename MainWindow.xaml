@@ -989,19 +989,44 @@
                                             </Hyperlink>
                                         </TextBlock>
 
-                                        <!-- 🔓 BOTÓN DE REVERSIÓN DINÁMICA DE ALTA SEGURIDAD -->
+                                        <!-- 🔄 INTERRUPTOR MAESTRO DE SECCIÓN FAMILIAR CON PLANTILLA ANTI-BLANCO DE WINDOWS -->
                                         <Button x:Name="BtnHabilitarFamiliarEdicion" 
-                                                Content="🔓 Habilitar Fotos Familiares" 
-                                                Background="{StaticResource VerdeExito}" 
-                                                Foreground="White" 
+                                                Content="🔒 Sección Familiar" 
+                                                Foreground="{StaticResource TextoSecundario}"
                                                 Padding="15,0" 
                                                 Height="28" 
                                                 Margin="20,0,0,0" 
                                                 FontWeight="Bold" 
                                                 FontSize="11" 
                                                 BorderThickness="0" 
-                                                Visibility="Collapsed" 
-                                                Click="BtnHabilitarFamiliarEdicion_Click"/>
+                                                IsEnabled="False"
+                                                Click="BtnHabilitarFamiliarEdicion_Click">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <!-- Usamos un Border nativo para controlar el fondo y mantener las esquinas redondeadas de tu Suite -->
+                                                    <Border x:Name="BordeBoton" 
+                                                            Background="#333337" 
+                                                            CornerRadius="4" 
+                                                            BorderThickness="0" 
+                                                            Padding="{TemplateBinding Padding}">
+                                                        <ContentPresenter HorizontalAlignment="Center" 
+                                                                          VerticalAlignment="Center" 
+                                                                          RecognizesAccessKey="True"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <!-- 🔒 ESTADO DESHABILITADO: Se queda en gris oscuro con letras tenues (0% Blanco) -->
+                                                        <Trigger Property="IsEnabled" Value="False">
+                                                            <Setter TargetName="BordeBoton" Property="Background" Value="#2D2D30"/>
+                                                            <Setter Property="Foreground" Value="#666666"/>
+                                                        </Trigger>
+                                                        <!-- 🔥 ESTADO PASAR EL MOUSE (HOVER): Pequeño brillo para la interacción visual -->
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="BordeBoton" Property="Opacity" Value="0.9"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
                                     </StackPanel>
 
                                     <!-- 2. BANNER INFORMATIVO: INSTITUCIÓN SELECCIONADA -->
@@ -1146,9 +1171,15 @@
                                                                     <Style TargetType="Border">
                                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                                         <Style.Triggers>
-                                                                            <!-- Si la fila está marcada en edición activa, se enciende por hardware -->
+                                                                            <!-- 1. Si la fila está marcada en edición activa, se enciende por hardware -->
                                                                             <DataTrigger Binding="{Binding EstaSiendoEditadoLocal}" Value="True">
                                                                                 <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+
+                                                                            <!-- 🚫 2. REGLA DE ALEXANDER: Si la sección familiar está excluida, forzamos el apagado -->
+                                                                            <!-- Esto anula la línea celeste por hardware de inmediato y no la deja parpadear -->
+                                                                            <DataTrigger Binding="{Binding IsFamiliarExcluido}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Collapsed"/>
                                                                             </DataTrigger>
                                                                         </Style.Triggers>
                                                                     </Style>
@@ -1339,7 +1370,7 @@
                                                                         <VisualBrush Visual="{Binding ElementName=ClipMoldRostro}"/>
                                                                     </Grid.OpacityMask>
                                                                     <Border x:Name="ClipMoldRostro" Background="#1E1E1C" CornerRadius="6"/>
-                                                                    <Image Source="{Binding RutaFotoRostro, Converter={StaticResource RotadorExifAutomatizado}}" Stretch="Uniform" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                                                    <Image Source="{Binding Converter={StaticResource RotadorExifAutomatizado}, ConverterParameter=ROSTROS}" Stretch="Uniform" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                                                                 </Grid>
                                                             </Border>
 
@@ -1411,29 +1442,41 @@
                                                 </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
 
-                                            <!-- 👨‍👩‍👧 COLUMNA FOTO FAMILIAR: REGLA DE CONMUTACIÓN DE CARTEL UNIFICADO -->
+                                            <!-- 👨‍👩‍👧 COLUMNA FOTO FAMILIAR - CELDA FANTASMA CON GELADA -->
                                             <DataGridTemplateColumn Header="Foto Familiar" Width="140">
                                                 <DataGridTemplateColumn.CellTemplate>
                                                     <DataTemplate>
+                                                        <!-- 🛡️ El Grid principal absorbe el bloqueo total si IsFamiliarExcluido es True -->
                                                         <Grid Margin="2">
+                                                            <Grid.Style>
+                                                                <Style TargetType="Grid">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsFamiliarExcluido}" Value="True">
+                                                                            <!-- Se vuelve invisible a los clics y congelado por hardware -->
+                                                                            <Setter Property="IsHitTestVisible" Value="False"/>
+                                                                            <Setter Property="Focusable" Value="False"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Grid.Style>
+
                                                             <Grid.RowDefinitions>
                                                                 <RowDefinition Height="85"/>
                                                                 <RowDefinition Height="Auto"/>
                                                             </Grid.RowDefinitions>
-
-                                                            <!-- ZONA SUPERIOR: CAMBIA EL CARTEL SEGÚN LA BASE DE DATOS -->
-                                                            <!-- A. 🖼️ Imagen Normal (Solo visible si hay foto real válida) -->
+                                                            
+                                                            <!-- A. 🖼️ Imagen Normal con Rotación EXIF por Hardware -->
                                                             <Border x:Name="ImgFamiliarNormal" Grid.Row="0" CornerRadius="6" Background="#1E1E1C" BorderBrush="{StaticResource BordeContenedor}" BorderThickness="1" Height="80" Width="114" VerticalAlignment="Center" HorizontalAlignment="Center">
                                                                 <Grid Background="#1E1E1C">
                                                                     <Grid.OpacityMask>
                                                                         <VisualBrush Visual="{Binding ElementName=ClipMoldFamiliar}"/>
                                                                     </Grid.OpacityMask>
                                                                     <Border x:Name="ClipMoldFamiliar" Background="#1E1E1C" CornerRadius="6"/>
-                                                                    <Image Source="{Binding RutaFotoFamiliar, Converter={StaticResource RotadorExifAutomatizado}}" Stretch="Uniform" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                                                    <Image Source="{Binding Converter={StaticResource RotadorExifAutomatizado}, ConverterParameter=FAMILIARES}" Stretch="Uniform" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                                                                 </Grid>
                                                             </Border>
 
-                                                            <!-- B. ⏳ Cartel de Pendiente (Si el campo está vacío o es 'Ninguna') -->
+                                                            <!-- B. ⏳ Cartel de Pendiente -->
                                                             <Border x:Name="CartelPendienteFamiliar" Grid.Row="0" CornerRadius="6" Background="#1E1E1C" BorderBrush="{StaticResource BordeContenedor}" BorderThickness="1" Height="80" Width="114" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed">
                                                                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                                                     <TextBlock Text="⏳" FontSize="18" HorizontalAlignment="Center"/>
@@ -1441,7 +1484,7 @@
                                                                 </StackPanel>
                                                             </Border>
 
-                                                            <!-- C. 🚨 Cartel de Emergencia (Si el campo dice literalmente 'emergencia') -->
+                                                            <!-- C. 🚨 Cartel de Emergencia -->
                                                             <Border x:Name="CartelEmergenciaFamiliar" Grid.Row="0" CornerRadius="6" Background="#2A1B10" BorderBrush="#E65100" BorderThickness="1" Height="80" Width="114" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed">
                                                                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                                                     <TextBlock Text="🚨" FontSize="18" HorizontalAlignment="Center"/>
@@ -1449,15 +1492,14 @@
                                                                 </StackPanel>
                                                             </Border>
 
-                                                            <!-- D. Cartel de Sección Excluida -->
-                                                            <Border x:Name="CartelExcluidoFamiliar" Grid.Row="0" CornerRadius="6" Background="#1E1212" BorderBrush="#995555" BorderThickness="1" Height="80" Width="114" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed">
+                                                            <!-- D. 🚫 Cartel de Sección Excluida -->
+                                                            <Border x:Name="CartelExcluidoFamiliar" Grid.Row="0" CornerRadius="6" Background="#2A1010" BorderBrush="#D32F2F" BorderThickness="1" Height="80" Width="114" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed">
                                                                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                                                    <TextBlock Text="🚫" FontSize="20" HorizontalAlignment="Center"/>
-                                                                    <TextBlock Text="Excluido" Foreground="#FF5252" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                                                    <TextBlock Text="🚫" FontSize="18" HorizontalAlignment="Center"/>
+                                                                    <TextBlock Text="Excluido" Foreground="#D32F2F" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                                                 </StackPanel>
                                                             </Border>
-
-                                                            <!-- ZONA INFERIOR: COMBOBOX MAESTRO SIEMPRE VISIBLE POR HARDWARE -->
+                                                            <!-- ZONA INFERIOR: COMBOBOX CON ACCESO DE CONTROL POR TAG -->
                                                             <ComboBox Grid.Row="1" 
                                                                       IsSynchronizedWithCurrentItem="False"
                                                                       ItemsSource="{Binding DataContext.ListaFamiliaresDisponibles, RelativeSource={RelativeSource AncestorType=DataGrid}}" 
@@ -1469,6 +1511,17 @@
                                                                       VirtualizingPanel.IsVirtualizing="True"
                                                                       VirtualizingPanel.VirtualizationMode="Recycling"
                                                                       VirtualizingPanel.ScrollUnit="Pixel">
+                                                                <ComboBox.Style>
+                                                                    <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                                                                        <Setter Property="IsEnabled" Value="True"/>
+                                                                        <Style.Triggers>
+                                                                            <!-- 🚫 REGLA DE ALEXANDER: Si se presiona el botón, el combo se congela en su sitio -->
+                                                                            <DataTrigger Binding="{Binding IsFamiliarExcluido}" Value="True">
+                                                                                <Setter Property="IsEnabled" Value="False"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </ComboBox.Style>
                                                                 <ComboBox.ItemsPanel>
                                                                     <ItemsPanelTemplate>
                                                                         <VirtualizingStackPanel />
@@ -1477,7 +1530,7 @@
                                                             </ComboBox>
                                                         </Grid>
                                                         <DataTemplate.Triggers>
-                                                            <!-- CONMUTACIÓN EXCLUSIVA DE COMPORTAMIENTO SUPERIOR -->
+                                                            <!-- Tus disparadores de vacío, null, PENDIENTE y emergencia se quedan exactamente iguales -->
                                                             <DataTrigger Binding="{Binding FotoFamiliar}" Value="">
                                                                 <Setter TargetName="ImgFamiliarNormal" Property="Visibility" Value="Collapsed"/>
                                                                 <Setter TargetName="CartelPendienteFamiliar" Property="Visibility" Value="Visible"/>
@@ -1494,14 +1547,15 @@
                                                                 <Setter TargetName="ImgFamiliarNormal" Property="Visibility" Value="Collapsed"/>
                                                                 <Setter TargetName="CartelPendienteFamiliar" Property="Visibility" Value="Visible"/>
                                                             </DataTrigger>
-
-                                                            <!-- REGLA DE EMERGENCIA: Oculta la foto normal y activa la alerta, pero deja el combo intacto abajo -->
                                                             <DataTrigger Binding="{Binding FotoFamiliar}" Value="emergencia">
                                                                 <Setter TargetName="ImgFamiliarNormal" Property="Visibility" Value="Collapsed"/>
                                                                 <Setter TargetName="CartelEmergenciaFamiliar" Property="Visibility" Value="Visible"/>
                                                             </DataTrigger>
-                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="DESACTIVADO">
+
+                                                            <!-- 🚫 REGLA DE ADAPTACIÓN: El cartel rojo se activa ÚNICAMENTE si presionas el botón superior -->
+                                                            <DataTrigger Binding="{Binding IsFamiliarExcluido}" Value="True">
                                                                 <Setter TargetName="ImgFamiliarNormal" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="CartelPendienteFamiliar" Property="Visibility" Value="Collapsed"/>
                                                                 <Setter TargetName="CartelExcluidoFamiliar" Property="Visibility" Value="Visible"/>
                                                             </DataTrigger>
                                                         </DataTemplate.Triggers>
@@ -1736,6 +1790,7 @@
                                     </Grid>
 
                                     <!-- 3. DATA GRID DE AUDITORÍA MASIVA CON COLUMNAS EXACTAS (CORREGIDO) -->
+                                    <!-- 📋 GRID DE REPORTE DE ELECCIONES DE ALTA FIDELIDAD - PARTE 1 -->
                                     <DataGrid Grid.Row="2" x:Name="GridReporteElecciones" Margin="20,0,20,20" 
                                               Background="{StaticResource FondoPanel}" 
                                               RowBackground="#2D2D30" 
@@ -1750,8 +1805,13 @@
                                               HorizontalGridLinesBrush="#3F3F46" 
                                               VerticalGridLinesBrush="#3F3F46"
                                               FontSize="13"
-                                              RowHeight="36">
+                                              RowHeight="120"
+                                              VirtualizingStackPanel.IsVirtualizing="True"
+                                              VirtualizingStackPanel.VirtualizationMode="Standard"
+                                              EnableRowVirtualization="False">
                                         <DataGrid.Columns>
+                                            
+                                            <!-- Columna 1: N° Orden -->
                                             <DataGridTextColumn Header="N° Orden" Width="80" Binding="{Binding NumeroOrden}">
                                                 <DataGridTextColumn.ElementStyle>
                                                     <Style TargetType="TextBlock">
@@ -1762,23 +1822,26 @@
                                                 </DataGridTextColumn.ElementStyle>
                                             </DataGridTextColumn>
 
-                                            <DataGridTextColumn Header="Nombre Completo del Alumno" Width="250" Binding="{Binding NombreCompleto}">
+                                            <!-- Columna 2: Nombre Completo del Alumno -->
+                                            <DataGridTextColumn Header="Nombre Completo del Alumno" Width="240" Binding="{Binding NombreCompleto}">
                                                 <DataGridTextColumn.ElementStyle>
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="VerticalAlignment" Value="Center"/>
-                                                        <Setter Property="Padding" Value="8,0,0,0"/>
+                                                        <Setter Property="Padding" Value="10,0,0,0"/>
+                                                        <Setter Property="TextWrapping" Value="Wrap"/>
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
                                                     </Style>
                                                 </DataGridTextColumn.ElementStyle>
                                             </DataGridTextColumn>
 
-                                            <!-- 📅 COLUMNA FECHA NACIMIENTO CON GUION DE RESPALDO -->
+                                            <!-- Columna 3: Fecha Nacimiento (Formato Simple a una sola Línea) -->
                                             <DataGridTemplateColumn Header="Fecha Nac." Width="110">
                                                 <DataGridTemplateColumn.CellTemplate>
                                                     <DataTemplate>
                                                         <TextBlock VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="13">
                                                             <TextBlock.Style>
                                                                 <Style TargetType="TextBlock">
-                                                                    <Setter Property="Text" Value="{Binding FechaNacimiento, StringFormat=\{0:dd/MM/yyyy\}}"/>
+                                                                    <Setter Property="Text" Value="{Binding FechaNacimiento, StringFormat=\{0:yyyy-MM-dd\}}"/>
                                                                     <Setter Property="Foreground" Value="{StaticResource TextoPrincipal}"/>
                                                                     <Style.Triggers>
                                                                         <DataTrigger Binding="{Binding FechaNacimiento}" Value="{x:Null}">
@@ -1793,8 +1856,8 @@
                                                 </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
 
-                                            <!-- 🚻 COLUMNA SEXO CON GUION DE RESPALDO -->
-                                            <DataGridTemplateColumn Header="Sexo" Width="95">
+                                            <!-- Columna 4: Sexo (CORREGIDA SIN ERRORES DE CIERRE) -->
+                                            <DataGridTemplateColumn Header="Sexo" Width="90">
                                                 <DataGridTemplateColumn.CellTemplate>
                                                     <DataTemplate>
                                                         <TextBlock VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="13">
@@ -1803,22 +1866,25 @@
                                                                     <Setter Property="Text" Value="{Binding Sexo}"/>
                                                                     <Setter Property="Foreground" Value="{StaticResource TextoPrincipal}"/>
                                                                     <Style.Triggers>
+
+                                                                        <!-- Si viene vacío "" -->
                                                                         <DataTrigger Binding="{Binding Sexo}" Value="">
                                                                             <Setter Property="Text" Value="-"/>
                                                                             <Setter Property="Foreground" Value="#555555"/>
                                                                         </DataTrigger>
+
+                                                                        <!-- Si viene nulo Null -->
                                                                         <DataTrigger Binding="{Binding Sexo}" Value="{x:Null}">
                                                                             <Setter Property="Text" Value="-"/>
                                                                             <Setter Property="Foreground" Value="#555555"/>
                                                                         </DataTrigger>
+
+                                                                        <!-- Si viene como Elige  -->
                                                                         <DataTrigger Binding="{Binding Sexo}" Value="-- Elige --">
                                                                             <Setter Property="Text" Value="-"/>
                                                                             <Setter Property="Foreground" Value="#555555"/>
                                                                         </DataTrigger>
-                                                                        <DataTrigger Binding="{Binding Sexo}" Value="-">
-                                                                            <Setter Property="Text" Value="-"/>
-                                                                            <Setter Property="Foreground" Value="#555555"/>
-                                                                        </DataTrigger>
+
                                                                     </Style.Triggers>
                                                                 </Style>
                                                             </TextBlock.Style>
@@ -1827,208 +1893,212 @@
                                                 </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
 
-                                            <!-- 📝 COLUMNA PREFERENCIAS / RESPUESTAS CON GUION DE RESPALDO -->
-                                            <DataGridTemplateColumn Header="Preferencias / Respuestas" Width="280">
+                                            <!-- Columna 5: Preferencias / Respuestas (BLANCO CON ETIQUETAS EN NEGRITA) -->
+                                            <DataGridTemplateColumn Header="Preferencias / Respuestas" Width="260">
                                                 <DataGridTemplateColumn.CellTemplate>
                                                     <DataTemplate>
-                                                        <Grid VerticalAlignment="Center" Margin="6,2">
-                                                            <!-- Bloque de contenido: Solo visible si Hobbies contiene datos reales -->
+                                                        <Grid VerticalAlignment="Center" Margin="10,2">
                                                             <StackPanel x:Name="ContenedorRespuestas">
-                                                                <TextBlock Text="{Binding Hobbies}" Foreground="#FFB300" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                                                <TextBlock Text="{Binding ComidaFav}" Foreground="{StaticResource TextoPrincipal}" FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                                                <StackPanel.Style>
+                                                                    <Style TargetType="StackPanel">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Hobbies}" Value="">
+                                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding Hobbies}" Value="{x:Null}">
+                                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </StackPanel.Style>
+
+                                                                <!-- ⭐ Hobbies en Blanco con "Pref:" en Negrita -->
+                                                                <TextBlock Foreground="{StaticResource TextoPrincipal}" FontSize="12" TextWrapping="Wrap">
+                                <Run Text="⭐ Pref: " FontWeight="Bold" Foreground="{StaticResource TextoPrincipal}"/>
+                                <Run Text="{Binding Hobbies, Mode=OneWay}"/>
+                                                                </TextBlock>
+
+                                                                <!-- 🍖 Comida en Blanco con "Comida:" en Negrita -->
+                                                                <TextBlock Foreground="{StaticResource TextoPrincipal}" FontSize="12" Margin="0,5,0,0" TextWrapping="Wrap">
+                                <Run Text="🍖 Comida: " FontWeight="Bold" Foreground="{StaticResource TextoPrincipal}"/>
+                                <Run Text="{Binding ComidaFav, Mode=OneWay}"/>
+                                                                </TextBlock>
                                                             </StackPanel>
 
-                                                            <!-- Guion de respaldo: Solo visible si está vacío o nulo -->
-                                                            <TextBlock x:Name="TxtGuionPreferencias" Text="-000" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#555555" Visibility="Collapsed"/>
+                                                            <TextBlock x:Name="TxtGuionPreferencias" Text="- " HorizontalAlignment="Left" VerticalAlignment="Center" Foreground="#555555">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Hobbies}" Value="">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding Hobbies}" Value="{x:Null}">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+
+                                            <!-- 👤 Columna 6: Rostro Elegido (Ancho Ampliado a 250 para no cortar el texto) -->
+                                            <DataGridTemplateColumn Header="Rostro Elegido" Width="250">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="5,2" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <!-- A. Contenedor de la Imagen con Rotación EXIF por Hardware -->
+                                                            <Border x:Name="ImgRostroNormal" Grid.Column="0" CornerRadius="6" Background="#1E1E1C" BorderBrush="{StaticResource BordeContenedor}" BorderThickness="1" Height="80" Width="114">
+                                                                <Grid Background="#1E1E1C">
+                                                                    <Grid.OpacityMask>
+                                                                        <VisualBrush Visual="{Binding ElementName=ClipMoldRostro}"/>
+                                                                    </Grid.OpacityMask>
+                                                                    <Border x:Name="ClipMoldRostro" Background="#1E1E1C" CornerRadius="6"/>
+                                                                    <Image Source="{Binding FotoRostro, Converter={StaticResource RotadorExifAutomatizado}, ConverterParameter=ROSTROS}" Stretch="Uniform" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                                                </Grid>
+                                                            </Border>
+
+                                                            <!-- B. Cartel de Estado Pendiente ⏳ -->
+                                                            <Border x:Name="CartelPendienteRostro" Grid.Column="0" CornerRadius="6" Background="#1E1E1C" BorderBrush="{StaticResource BordeContenedor}" BorderThickness="1" Height="80" Width="114" Visibility="Collapsed">
+                                                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                                                    <TextBlock Text="⏳" FontSize="18" HorizontalAlignment="Center"/>
+                                                                    <TextBlock Text="Pendiente" Foreground="#666666" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                                                </StackPanel>
+                                                            </Border>
+
+                                                            <!-- C. Cartel de Emergencia 🚨 -->
+                                                            <Border x:Name="CartelEmergenciaRostro" Grid.Column="0" CornerRadius="6" Background="#2A1B10" BorderBrush="#E65100" BorderThickness="1" Height="32" Width="114" Visibility="Collapsed" VerticalAlignment="Center">
+                                                                <TextBlock Text="⚠ Emergencia" Foreground="#FF9800" FontSize="12" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+
+                                                            <!-- D. Nombre del Archivo de Foto en Color Celeste Fuerte -->
+                                                            <TextBlock x:Name="TxtNombreArchivoRostro" 
+                                                                       Grid.Column="1" 
+                                                                       Text="{Binding FotoRostro}" 
+                                                                       Foreground="#00D2FF" 
+                                                                       FontSize="11.5" 
+                                                                       FontWeight="SemiBold" 
+                                                                       VerticalAlignment="Center" 
+                                                                       Margin="10,0,0,0" 
+                                                                       TextWrapping="Wrap"/>
                                                         </Grid>
                                                         <DataTemplate.Triggers>
-                                                            <!-- Si el campo Hobbies viene vacío de la base de datos, conmutamos los controles visuales -->
-                                                            <DataTrigger Binding="{Binding Hobbies}" Value="">
-                                                                <Setter TargetName="ContenedorRespuestas" Property="Visibility" Value="Collapsed"/>
-                                                                <Setter TargetName="TxtGuionPreferencias" Property="Visibility" Value="Visible"/>
-                                                                <Setter TargetName="TxtGuionPreferencias" Property="Text" Value="-"/>
+                                                            <DataTrigger Binding="{Binding FotoRostro}" Value="">
+                                                                <Setter TargetName="ImgRostroNormal" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="TxtNombreArchivoRostro" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="CartelPendienteRostro" Property="Visibility" Value="Visible"/>
                                                             </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Hobbies}" Value="{x:Null}">
-                                                                <Setter TargetName="ContenedorRespuestas" Property="Visibility" Value="Collapsed"/>
-                                                                <Setter TargetName="TxtGuionPreferencias" Property="Visibility" Value="Visible"/>
-                                                                <Setter TargetName="TxtGuionPreferencias" Property="Text" Value="-"/>
+                                                            <DataTrigger Binding="{Binding FotoRostro}" Value="{x:Null}">
+                                                                <Setter TargetName="ImgRostroNormal" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="TxtNombreArchivoRostro" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="CartelPendienteRostro" Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding FotoRostro}" Value="PENDIENTE">
+                                                                <Setter TargetName="ImgRostroNormal" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="TxtNombreArchivoRostro" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="CartelPendienteRostro" Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding FotoRostro}" Value="-- Ninguna --">
+                                                                <Setter TargetName="ImgRostroNormal" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="TxtNombreArchivoRostro" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="CartelPendienteRostro" Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding FotoRostro}" Value="emergencia">
+                                                                <Setter TargetName="ImgRostroNormal" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="TxtNombreArchivoRostro" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="CartelEmergenciaRostro" Property="Visibility" Value="Visible"/>
                                                             </DataTrigger>
                                                         </DataTemplate.Triggers>
                                                     </DataTemplate>
                                                 </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
 
-                                            <!-- 👤 COLUMNA ROSTRO ELEGIDO PREMIUM (CON CARTEL DE EMERGENCIA) -->
-                                            <DataGridTemplateColumn Header="Rostro Elegido" Width="145">
+                                            <!-- 👨‍👩‍👧 Columna 7: Foto Familiar Elegida (Ancho Ampliado a 250 para no cortar el texto) -->
+                                            <DataGridTemplateColumn Header="Foto Familiar Elegida" Width="250">
                                                 <DataGridTemplateColumn.CellTemplate>
                                                     <DataTemplate>
-                                                        <Grid VerticalAlignment="Center" HorizontalAlignment="Center">
-                                                            <!-- 1. TEXTO DEL ARCHIVO REAL: Solo visible si hay una foto asignada -->
-                                                            <TextBlock Text="{Binding FotoRostro}" Foreground="{StaticResource TextoPrincipal}" FontSize="12" VerticalAlignment="Center">
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
-                                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding FotoRostro}" Value="">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding FotoRostro}" Value="{x:Null}">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding FotoRostro}" Value="PENDIENTE">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding FotoRostro}" Value="-- Ninguna --">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding FotoRostro}" Value="emergencia">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
+                                                        <Grid Margin="5,2" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
 
-                                                            <!-- 2. CARTEL DE PENDIENTE ESTÁNDAR ⏳ -->
-                                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                                <StackPanel.Style>
-                                                                    <Style TargetType="StackPanel">
-                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding FotoRostro}" Value="">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding FotoRostro}" Value="{x:Null}">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding FotoRostro}" Value="PENDIENTE">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding FotoRostro}" Value="-- Ninguna --">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </StackPanel.Style>
-                                                                <TextBlock Text="⏳" FontSize="12" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                                                                <TextBlock Text="Pendiente" Foreground="#666666" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                                            </StackPanel>
-
-                                                            <!-- 3. 🚨 NUEVA ETIQUETA NARANJA DE EMERGENCIA PREMIUM -->
-                                                            <Border CornerRadius="4" Padding="6,3" Background="#2A1B10" BorderBrush="#E65100" BorderThickness="1" VerticalAlignment="Center" HorizontalAlignment="Center">
-                                                                <Border.Style>
-                                                                    <Style TargetType="Border">
-                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding FotoRostro}" Value="emergencia">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </Border.Style>
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <TextBlock Text="🚨" FontSize="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                                                                    <TextBlock Text="Emergencia" Foreground="#FF9800" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
-                                                                </StackPanel>
+                                                            <!-- A. Contenedor de la Imagen con Rotación EXIF por Hardware -->
+                                                            <Border x:Name="ImgFamiliarNormal" Grid.Column="0" CornerRadius="6" Background="#1E1E1C" BorderBrush="{StaticResource BordeContenedor}" BorderThickness="1" Height="80" Width="114">
+                                                                <Grid Background="#1E1E1C">
+                                                                    <Grid.OpacityMask>
+                                                                        <VisualBrush Visual="{Binding ElementName=ClipMoldFamiliar}"/>
+                                                                    </Grid.OpacityMask>
+                                                                    <Border x:Name="ClipMoldFamiliar" Background="#1E1E1C" CornerRadius="6"/>
+                                                                    <Image Source="{Binding FotoFamiliar, Converter={StaticResource RotadorExifAutomatizado}, ConverterParameter=FAMILIARES}" Stretch="Uniform" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                                                </Grid>
                                                             </Border>
-                                                        </Grid>
-                                                    </DataTemplate>
-                                                </DataGridTemplateColumn.CellTemplate>
-                                            </DataGridTemplateColumn>
 
-                                            <!-- 👨‍👩‍👧 COLUMNA FOTO FAMILIAR ELEGIDA PREMIUM (CON CARTEL DE EMERGENCIA) -->
-                                            <DataGridTemplateColumn Header="Foto Familiar Elegida" Width="145">
-                                                <DataGridTemplateColumn.CellTemplate>
-                                                    <DataTemplate>
-                                                        <Grid VerticalAlignment="Center" HorizontalAlignment="Center">
-                                                            <!-- 1. TEXTO DEL ARCHIVO REAL: Solo visible si hay foto real asignada -->
-                                                            <TextBlock Text="{Binding FotoFamiliar}" Foreground="{StaticResource TextoPrincipal}" FontSize="12" VerticalAlignment="Center">
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
-                                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="{x:Null}">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="PENDIENTE">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="-- Ninguna --">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="DESACTIVADO">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="emergencia">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
-
-                                                            <!-- 2. CARTEL DE PENDIENTE ESTÁNDAR ⏳ -->
-                                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                                <StackPanel.Style>
-                                                                    <Style TargetType="StackPanel">
-                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="{x:Null}">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="PENDIENTE">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="-- Ninguna --">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </StackPanel.Style>
-                                                                <TextBlock Text="⏳" FontSize="12" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                                                                <TextBlock Text="Pendiente" Foreground="#666666" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                                            </StackPanel>
-
-                                                            <!-- 3. 🚨 NUEVA ETIQUETA NARANJA DE EMERGENCIA PREMIUM -->
-                                                            <Border CornerRadius="4" Padding="6,3" Background="#2A1B10" BorderBrush="#E65100" BorderThickness="1" VerticalAlignment="Center" HorizontalAlignment="Center">
-                                                                <Border.Style>
-                                                                    <Style TargetType="Border">
-                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="emergencia">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </Border.Style>
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <TextBlock Text="🚨" FontSize="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                                                                    <TextBlock Text="Emergencia" Foreground="#FF9800" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                            <!-- B. Cartel de Estado Pendiente ⏳ -->
+                                                            <Border x:Name="CartelPendienteFamiliar" Grid.Column="0" CornerRadius="6" Background="#1E1E1C" BorderBrush="{StaticResource BordeContenedor}" BorderThickness="1" Height="80" Width="114" Visibility="Collapsed">
+                                                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                                                    <TextBlock Text="⏳" FontSize="18" HorizontalAlignment="Center"/>
+                                                                    <TextBlock Text="Pendiente" Foreground="#666666" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                                                 </StackPanel>
                                                             </Border>
 
-                                                            <!-- 4. CARTEL DE EXCLUSIÓN ROJO 🚫 -->
-                                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                                <StackPanel.Style>
-                                                                    <Style TargetType="StackPanel">
-                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="DESACTIVADO">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </StackPanel.Style>
-                                                                <TextBlock Text="🚫" FontSize="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                                                                <TextBlock Text="Excluido" Foreground="#995555" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
-                                                            </StackPanel>
+                                                            <!-- C. Cartel de Emergencia 🚨 (Estilo Caja Naranja Premium) -->
+                                                            <Border x:Name="CartelEmergenciaFamiliar" Grid.Column="0" CornerRadius="6" Background="#2A1B10" BorderBrush="#E65100" BorderThickness="1" Height="32" Width="114" Visibility="Collapsed" VerticalAlignment="Center">
+                                                                <TextBlock Text="⚠ Emergencia" Foreground="#FF9800" FontSize="12" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+
+                                                            <!-- D. Nombre del Archivo de Foto en Color Celeste Fuerte -->
+                                                            <TextBlock x:Name="TxtNombreArchivoFamiliar" 
+                                   Grid.Column="1" 
+                                   Text="{Binding FotoFamiliar}" 
+                                   Foreground="#00D2FF" 
+                                   FontSize="11.5" 
+                                   FontWeight="SemiBold" 
+                                   VerticalAlignment="Center" 
+                                   Margin="10,0,0,0" 
+                                   TextWrapping="Wrap"/>
                                                         </Grid>
+                                                        <DataTemplate.Triggers>
+                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="">
+                                                                <Setter TargetName="ImgFamiliarNormal" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="TxtNombreArchivoFamiliar" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="CartelPendienteFamiliar" Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="{x:Null}">
+                                                                <Setter TargetName="ImgFamiliarNormal" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="TxtNombreArchivoFamiliar" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="CartelPendienteFamiliar" Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="PENDIENTE">
+                                                                <Setter TargetName="ImgFamiliarNormal" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="TxtNombreArchivoFamiliar" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="CartelPendienteFamiliar" Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="-- Ninguna --">
+                                                                <Setter TargetName="ImgFamiliarNormal" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="TxtNombreArchivoFamiliar" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="CartelPendienteFamiliar" Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="emergencia">
+                                                                <Setter TargetName="ImgFamiliarNormal" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="TxtNombreArchivoFamiliar" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="CartelEmergenciaFamiliar" Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding FotoFamiliar}" Value="DESACTIVADO">
+                                                                <Setter TargetName="ImgFamiliarNormal" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="TxtNombreArchivoFamiliar" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="CartelPendienteFamiliar" Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </DataTemplate.Triggers>
                                                     </DataTemplate>
                                                 </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>

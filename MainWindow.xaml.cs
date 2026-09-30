@@ -30,167 +30,219 @@ namespace SmartAnuariosPro
             _clienteWeb.DefaultRequestHeaders.Add("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
         }
 
+        // 🟢 CONVERTIDOR MAESTRO PREMIUM - UNIFICADO Y BLINDADO CONTRA ERRORES DE ÁMBITO
+        // 🟢 REGLA DE PROTECCIÓN DE ROSTROS EN EL CONVERTIDOR (CORREGIDO)
+        // 🟢 CONVERTIDOR PREMIUM - BI-DIRECCIONAL INMUNE AL APAGÓN DE ROSTROS (CORREGIDO)
         public object? Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
         {
-            if (value is not string ruta || string.IsNullOrWhiteSpace(ruta))
-                return null;
+            if (value == null) return null;
 
-            string valorLimpio = ruta.Trim().ToUpper();
-            if (valorLimpio.Contains("PENDIENTE") || valorLimpio.Contains("EMERGENCIA") ||
+            string nombreArchivo = string.Empty;
+            string parametroColumna = parameter?.ToString()?.Trim()?.ToUpper() ?? string.Empty;
+
+            // 🔍 ANALIZAMOS SI LA CELDA QUE SE ESTÁ PINTANDO EN ESTE INSTANTE ES LA DE FAMILIARES
+            bool esColumnaFamiliar = parametroColumna == "FAMILIARES" || parametroColumna == "FOTO FAMILIAR";
+
+            // 1. INSPECCIÓN ATÓMICA DE DATOS SEGÚN EL BINDING DEL XAML
+            if (value is AlumnoRemoteModel alumno)
+            {
+                if (esColumnaFamiliar)
+                {
+                    // 🔒 SI ES LA COLUMNA FAMILIAR: Sigue su curso ordinario de exclusión
+                    nombreArchivo = alumno.FotoFamiliar ?? "";
+                }
+                else
+                {
+                    // 👤 REGLA SAGRADA DE ALEXANDER: SI ES LA COLUMNA DE ROSTROS, SE ALIMENTA EXCLUSIVAMENTE 
+                    // DE FOTOROSTRO E IGNORA EL ESTADO DEL TAG. NADA PUEDE ANULAR ESTA VARIABLE.
+                    nombreArchivo = alumno.FotoRostro ?? "";
+                }
+            }
+            else
+            {
+                // Soporte de respaldo para cadenas de texto planas
+                nombreArchivo = value.ToString() ?? string.Empty;
+            }
+
+            nombreArchivo = System.IO.Path.GetFileName(nombreArchivo).Trim();
+            string valorLimpio = nombreArchivo.ToUpper();
+
+            // Filtro perimetral estricto para ignorar los carteles de control en la grilla oscura
+            if (string.IsNullOrWhiteSpace(nombreArchivo) ||
+                valorLimpio.Contains("PENDIENTE") || valorLimpio.Contains("EMERGENCIA") ||
                 valorLimpio.Contains("NINGUNA") || valorLimpio == "-" || valorLimpio.EndsWith("/"))
             {
                 return null;
             }
 
-            if (_cacheImagenes.TryGetValue(ruta, out var imagenCacheada))
+            // 🚫 Si es la columna familiar y contiene el token de exclusión, pintamos el cartel
+            if (esColumnaFamiliar && valorLimpio.Contains("DESACTIVADO"))
+            {
+                return null;
+            }
+            
+            // 3. 🟢 RESPUESTA DESDE LA MEMORIA RAM CACHÉ DE LA SESIÓN (60 FPS)
+            if (_cacheImagenes.TryGetValue(nombreArchivo, out var imagenCacheada))
             {
                 return imagenCacheada;
             }
 
-            // 💻 CALCULO DE RUTA DE CLONACIÓN LOCAL (Según tu PathResolverService)
-            string carpetaBase = AppBootstrap.Instance.Paths.BaseMasterPath ?? "C:\\Anuarios 2026";
-            string fotografoLimpio = "Fotografo_Anonimo";
-            string codigoColegioLimpio = "";
 
-            if (Application.Current.MainWindow is MainWindow ventanaMaestra)
+            // 🗂️ 3. RESOLUCIÓN DE RUTAS DINÁMICAS POR ALUMNO
+            string carpetaMaestraEnVivo = AppBootstrap.Instance.Paths.BaseMasterPath ?? "D:\\Anuarios2026";
+            string fotografoLimpio = "Fotógrafo";
+            string codigoColegioLimpio = "Colegio_Anonimo";
+
+            var mainWin = System.Windows.Application.Current.MainWindow as MainWindow;
+            if (mainWin != null)
             {
-                if (ventanaMaestra._colegioActualEnEdicion != null)
+                var listaOrigen = (value is AlumnoRemoteModel) ? null : mainWin.GridEdicionColegio?.ItemsSource as System.Collections.ObjectModel.ObservableCollection<AlumnoRemoteModel>;
+                var alumnoDueno = (value is AlumnoRemoteModel alDirecto) ? alDirecto : listaOrigen?.FirstOrDefault(a =>
+                    (!string.IsNullOrEmpty(a.FotoRostro) && a.FotoRostro.Trim().ToUpper() == valorLimpio) ||
+                    (!string.IsNullOrEmpty(a.FotoFamiliar) && a.FotoFamiliar.Trim().ToUpper() == valorLimpio));
+
+                if (alumnoDueno == null && mainWin.GridReporteElecciones?.ItemsSource is System.Collections.ObjectModel.ObservableCollection<AlumnoRemoteModel> listaReporte)
                 {
-                    fotografoLimpio = ventanaMaestra._colegioActualEnEdicion.Fotografo.Trim();
-                    codigoColegioLimpio = SmartAnuariosPro.Services.PathResolverService.FormatearCodigoColegio(ventanaMaestra._colegioActualEnEdicion.CodigoColegio);
+                    alumnoDueno = listaReporte.FirstOrDefault(a =>
+                        (!string.IsNullOrEmpty(a.FotoRostro) && a.FotoRostro.Trim().ToUpper() == valorLimpio) ||
+                        (!string.IsNullOrEmpty(a.FotoFamiliar) && a.FotoFamiliar.Trim().ToUpper() == valorLimpio));
+                }
+
+                if (alumnoDueno != null)
+                {
+                    codigoColegioLimpio = SmartAnuariosPro.Services.PathResolverService.FormatearCodigoColegio(alumnoDueno.CodigoColegio);
+                    fotografoLimpio = alumnoDueno.Fotografo.Trim();
+                }
+                else if (mainWin._colegioActualEnEdicion != null)
+                {
+                    fotografoLimpio = mainWin._colegioActualEnEdicion.Fotografo.Trim();
+                    codigoColegioLimpio = SmartAnuariosPro.Services.PathResolverService.FormatearCodigoColegio(mainWin._colegioActualEnEdicion.CodigoColegio);
                 }
             }
 
-            string nombreArchivoLimpio = System.IO.Path.GetFileName(ruta).Trim().ToUpper();
-            string subCarpetaDestino = valorLimpio.Contains("FAMILIAR") ? "Familiares" : "Individuales";
-            string rutaLocalFisica = System.IO.Path.Combine(carpetaBase, fotografoLimpio, codigoColegioLimpio, "Fotos Por Escoger", subCarpetaDestino, nombreArchivoLimpio);
+            bool esFamiliarReal = parametroColumna == "FAMILIARES" || valorLimpio.Contains("FAMILIAR") || (value is AlumnoRemoteModel && parametroColumna == "FAMILIARES");
+            string subCarpetaPC = esFamiliarReal ? "Familiares" : "Individuales";
+            string subCarpetaUrlPHP = esFamiliarReal ? "familiares" : "rostros";
 
-            // 📡 TU CANAL ORIGINAL DE DESCARGA (Intacta y funcional, inmune al Error 403)
-            Task.Run(async () =>
+            string rutaLocalFisica = System.IO.Path.Combine(carpetaMaestraEnVivo, fotografoLimpio, codigoColegioLimpio, "Fotos Por Escoger", subCarpetaPC, nombreArchivo);
+
+            try
             {
-                try
+                // =======================================================================
+                // 💻 CANAL 1: PRIORIDAD ABSOLUTA - LA FOTO YA EXISTE EN TU DISCO DURO PC
+                // =======================================================================
+                if (System.IO.File.Exists(rutaLocalFisica))
                 {
-                    // 🟢 Invocamos a internet usando TU LÓGICA EXACTA ANTERIOR (Sin alterar tu URL nativa)
-                    byte[] bytesImagen = await _clienteWeb.GetByteArrayAsync(ruta);
+                    System.Diagnostics.Debug.WriteLine($"[HARDWARE LOCAL 💻] Cargando síncrono: {nombreArchivo}");
+                    var uriArchivo = new Uri(rutaLocalFisica, UriKind.Absolute);
+                    int gradosRotacion = 0;
 
-                    if (bytesImagen == null || bytesImagen.Length < 4) return;
-
-                    // =======================================================================
-                    // 💾 INTERCEPTACIÓN QUIRÚRGICA: Clonamos los bytes directo al disco local
-                    // =======================================================================
-                    if (!System.IO.File.Exists(rutaLocalFisica))
+                    try
                     {
-                        try
+                        var decoder = BitmapDecoder.Create(uriArchivo, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
+                        if (decoder.Frames != null && decoder.Frames.Count > 0 && decoder.Frames[0].Metadata is BitmapMetadata metadata)
                         {
-                            string? directorioContenedor = System.IO.Path.GetDirectoryName(rutaLocalFisica);
-                            if (!string.IsNullOrEmpty(directorioContenedor) && !System.IO.Directory.Exists(directorioContenedor))
+                            if (metadata.ContainsQuery("System.Photo.Orientation"))
                             {
-                                System.IO.Directory.CreateDirectory(directorioContenedor);
+                                object rawOrientacion = metadata.GetQuery("System.Photo.Orientation");
+                                if (rawOrientacion != null)
+                                {
+                                    ushort codigoGiro = System.Convert.ToUInt16(rawOrientacion);
+                                    if (codigoGiro == 6) gradosRotacion = 90;
+                                    else if (codigoGiro == 3) gradosRotacion = 180;
+                                    else if (codigoGiro == 8) gradosRotacion = 270;
+                                }
                             }
-
-                            // Guardamos el archivo original de 160 KB de forma invisible en tu PC de trabajo
-                            await System.IO.File.WriteAllBytesAsync(rutaLocalFisica, bytesImagen);
-                            System.Diagnostics.Debug.WriteLine($"[CLONADOR AUTOMÁTICO ✓] Interceptado y guardado en: {rutaLocalFisica}");
-                        }
-                        catch (Exception exDisco)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"[CLONADOR ALERTA] Falló la escritura: {exDisco.Message}");
                         }
                     }
+                    catch (NotSupportedException)
+                    {
+                        gradosRotacion = 0; // Foto web sin EXIF Nikon. Pasa de largo de forma segura.
+                        System.Diagnostics.Debug.WriteLine($"[IMAGEN WEB NORMALIZADA 🌐] Omitiendo cabecera EXIF ausente: {nombreArchivo}");
+                    }
 
-                    // Tu motor gráfico de descodificación EXIF, 120px en RAM y rotación por GPU continúa idéntico...
-                    await Application.Current.Dispatcher.InvokeAsync(() =>
+                    var miniBitmap = new BitmapImage();
+                    miniBitmap.BeginInit();
+                    miniBitmap.UriSource = uriArchivo;
+                    miniBitmap.DecodePixelWidth = 120;
+                    miniBitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    miniBitmap.EndInit();
+                    miniBitmap.Freeze();
+
+                    ImageSource resultadoFinal = miniBitmap;
+
+                    if (gradosRotacion != 0)
+                    {
+                        var transformado = new TransformedBitmap();
+                        transformado.BeginInit();
+                        transformado.Source = miniBitmap;
+                        transformado.Transform = new RotateTransform(gradosRotacion);
+                        transformado.EndInit();
+                        transformado.Freeze();
+                        resultadoFinal = transformado;
+                    }
+
+                    _cacheImagenes.TryAdd(nombreArchivo, resultadoFinal);
+                    return resultadoFinal;
+                }
+                // =======================================================================
+                // 📡 CANAL 2: COMODÍN DE RED - CLONACIÓN ASÍNCRONA (PC VACÍA)
+                // =======================================================================
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"[RED HOSTING 📡] Archivo ausente en PC. Clonando: {nombreArchivo}");
+                    string urlDescargaReal = $"https://pixeleduca.com/SmarAnuarios/Fotos{codigoColegioLimpio}/{subCarpetaUrlPHP}/{nombreArchivo}";
+
+                    Task.Run(async () =>
                     {
                         try
                         {
-                            using (var ms = new System.IO.MemoryStream(bytesImagen))
+                            byte[] bytesRemotos = await _clienteWeb.GetByteArrayAsync(urlDescargaReal);
+                            if (bytesRemotos == null || bytesRemotos.Length < 4) return;
+
+                            string? dirContenedor = System.IO.Path.GetDirectoryName(rutaLocalFisica);
+                            if (!string.IsNullOrEmpty(dirContenedor) && !System.IO.Directory.Exists(dirContenedor))
+                                System.IO.Directory.CreateDirectory(dirContenedor);
+
+                            await System.IO.File.WriteAllBytesAsync(rutaLocalFisica, bytesRemotos);
+
+                            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
                             {
-                                var decoder = BitmapDecoder.Create(ms, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
-                                if (decoder.Frames == null || decoder.Frames.Count == 0) return;
-
-                                var frame = decoder.Frames[0];
-                                var metadata = frame.Metadata as BitmapMetadata;
-                                int gradosRotacion = 0;
-
-                                if (metadata != null)
+                                var win = System.Windows.Application.Current.MainWindow as MainWindow;
+                                if (win?.GridEdicionColegio?.ItemsSource is System.Collections.ObjectModel.ObservableCollection<AlumnoRemoteModel> listaEd)
                                 {
-                                    object? orientacionValor = null;
-                                    if (metadata.ContainsQuery("/app1/ifd0/{ushort=274}"))
-                                        orientacionValor = metadata.GetQuery("/app1/ifd0/{ushort=274}");
-                                    else if (metadata.ContainsQuery("/app1/ifd0/Orientation"))
-                                        orientacionValor = metadata.GetQuery("/app1/ifd0/Orientation");
-                                    else if (metadata.ContainsQuery("/app1/ifd0/{ushort=33434}"))
-                                        orientacionValor = metadata.GetQuery("/app1/ifd0/{ushort=33434}");
-
-                                    if (orientacionValor != null)
+                                    foreach (var al in listaEd)
                                     {
-                                        string strValor = orientacionValor?.ToString()?.ToUpper() ?? "";
-                                        if (strValor.Contains("90") || strValor == "6" || strValor.Contains("CW")) gradosRotacion = 90;
-                                        else if (strValor.Contains("180") || strValor == "3") gradosRotacion = 180;
-                                        else if (strValor.Contains("270") || strValor == "8" || strValor.Contains("CCW")) gradosRotacion = 270;
-                                    }
-                                    else if (frame.PixelWidth > frame.PixelHeight && ruta.ToLower().Contains("rostros"))
-                                    {
-                                        gradosRotacion = 90;
+                                        if (al.FotoRostro == nombreArchivo) al.NotifyExternalPropertyChange(nameof(al.FotoRostro));
+                                        if (al.FotoFamiliar == nombreArchivo) al.NotifyExternalPropertyChange(nameof(al.FotoFamiliar));
                                     }
                                 }
-
-                                ms.Position = 0;
-                                var miniBitmap = new BitmapImage();
-                                miniBitmap.BeginInit();
-                                miniBitmap.StreamSource = ms;
-                                miniBitmap.DecodePixelWidth = 120; // Protege tu scroll para que no parpadee
-                                miniBitmap.CacheOption = BitmapCacheOption.OnLoad;
-                                miniBitmap.EndInit();
-
-                                miniBitmap.Freeze();
-                                ImageSource resultadoFinal = miniBitmap;
-
-                                if (gradosRotacion != 0)
+                                if (win?.GridReporteElecciones?.ItemsSource is System.Collections.ObjectModel.ObservableCollection<AlumnoRemoteModel> listaRep)
                                 {
-                                    var transformado = new TransformedBitmap();
-                                    transformado.BeginInit();
-                                    transformado.Source = miniBitmap;
-                                    transformado.Transform = new RotateTransform(gradosRotacion);
-                                    transformado.EndInit();
-                                    transformado.Freeze();
-                                    resultadoFinal = transformado;
-                                }
-
-                                _cacheImagenes.TryAdd(ruta, resultadoFinal);
-
-                                var mainWin = Application.Current.MainWindow;
-                                if (mainWin != null)
-                                {
-                                    var grid = mainWin.FindName("GridEdicionColegio") as DataGrid;
-                                    if (grid != null)
+                                    foreach (var al in listaRep)
                                     {
-                                        foreach (var item in grid.Items)
-                                        {
-                                            if (item is AlumnoRemoteModel al)
-                                            {
-                                                al.NotifyExternalPropertyChange("RutaFotoRostro");
-                                                al.NotifyExternalPropertyChange("RutaFotoFamiliar");
-                                            }
-                                        }
+                                        if (al.FotoRostro == nombreArchivo) al.NotifyExternalPropertyChange(nameof(al.FotoRostro));
+                                        if (al.FotoFamiliar == nombreArchivo) al.NotifyExternalPropertyChange(nameof(al.FotoFamiliar));
                                     }
                                 }
-                            }
+                            });
                         }
-                        catch (Exception exInner)
+                        catch (Exception exNet)
                         {
-                            System.Diagnostics.Debug.WriteLine($"[EXIF INNER ERROR] {exInner.Message}");
+                            System.Diagnostics.Debug.WriteLine($"[CLONADOR ALERTA] Falló descarga de {nombreArchivo}: {exNet.Message}");
                         }
                     });
                 }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[EXIF NET ERROR] {ex.Message}");
-                }
-            });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CRITICAL EXIF ERROR] {ex.Message}");
+            }
 
             return null;
         }
+
+
         public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
             => throw new NotImplementedException();
     }
@@ -278,6 +330,10 @@ namespace SmartAnuariosPro
         // 🟡 BÚFERES EXCLUSIVOS DE RUTAS PARA LA PESTAÑA EDITAR COLEGIO
         private System.Collections.Generic.List<string> _fotosRostrosNuevas = new();
         private System.Collections.Generic.List<string> _fotosFamiliasNuevas = new();
+
+        // 🧠 BÚFER PREMIUM CON MEMORIA: Respalda temporalmente las fotos familiares antes de un Toggle accidental
+        private System.Collections.Generic.Dictionary<int, string> _respaldoFotosFamiliaresMemoria = new();
+
 
         // 🛡️ BÚFER MASIVO DETECTOR DE CONFLICTOS EN CALIENTE
         private System.Collections.Generic.Dictionary<int, AlumnoRemoteModel> _historialAlumnosEnEdicionLocal = new();
@@ -408,6 +464,16 @@ namespace SmartAnuariosPro
             GridEdicionColegio.BeginningEdit += (s, e) => {
                 if (e.Row.Item is AlumnoRemoteModel alumno)
                 {
+
+                    // 🛡️ REGLA MAESTRA DE ALEXANDER: Si la sección familiar de este alumno está desactivada
+                    // y el foco intenta entrar a la columna "Foto Familiar", cancelamos y abortamos el evento en el acto.
+                    if (alumno.IsFamiliarExcluido && e.Column.Header?.ToString() == "Foto Familiar")
+                    {
+                        e.Cancel = true; // 🚫 Anula la edición por hardware: WPF consume el clic
+                        alumno.EstaSiendoEditadoLocal = false; // Nos aseguramos de mantener apagada la franja azul
+                        return; // Salida limpia inmediata: no ejecuta el PASO 1, no mete datos al búfer ni imprime el log
+                    }
+
                     // 🟢 PASO 1: Encendemos el interruptor de la fila de forma inmediata.
                     // Esto activa la franja celeste vertical y congela el Timer para este alumno en el acto.
                     if (!alumno.EstaSiendoEditadoLocal)
@@ -552,8 +618,16 @@ namespace SmartAnuariosPro
                                         _isSincronizandoUI = false;
                                     }
 
-                                    if (alVisual.FotoFamiliar != alNube.FotoFamiliar)
+                                    // 🛡️ REGLA EXACTA DE ALEXANDER: El radar sigue evaluando todo el alumno, pero si la celda familiar 
+                                    // está desactivada localmente, el Timer NO puede refrescarla ni sobreescribirla con datos de la nube.
+                                    if (alVisual.IsFamiliarExcluido)
                                     {
+                                        // Si está desactivada, congelamos la celda: el Timer pasa de largo del IF de abajo sin tocarla
+                                        System.Diagnostics.Debug.WriteLine($"[TIMER ⏳] Celda familiar congelada para {alVisual.NombreCompleto}. Omitiendo refresco.");
+                                    }
+                                    else if (alVisual.FotoFamiliar != alNube.FotoFamiliar)
+                                    {
+                                        // 🔄 Si NO está desactivada, la celda está viva: se ejecuta el refresco de datos normal
                                         _isSincronizandoUI = true;
                                         Application.Current.Dispatcher.Invoke(() => {
                                             alVisual.FotoFamiliar = alNube.FotoFamiliar;
@@ -1298,6 +1372,9 @@ namespace SmartAnuariosPro
                 // 4. 📸 Vaciamos los buffers locales de fotos adicionales de la PC
                 _fotosRostrosNuevas.Clear();
                 _fotosFamiliasNuevas.Clear();
+                // Purgamos por completo el búfer de fotos familiares para la siguiente promoción de la lista
+                _respaldoFotosFamiliaresMemoria.Clear();
+
                 TxtStatusMasRostros.Text = "Ninguno";
                 TxtStatusMasFamiliares.Text = "Ninguno";
 
@@ -1412,27 +1489,22 @@ namespace SmartAnuariosPro
             {
                 try
                 {
-                    // 🔥 CORREGIDO: URL limpia, directa y sin espacios para el HttpClient
                     string urlLimpia = "https://pixeleduca.com/SmartAnuarios/";
                     string codigo = colegioSeleccionado.CodigoColegio.Trim();
 
-                    // Despachamos las peticiones GET asíncronas hacia tus scripts de escaneo PHP
                     var respuestaRostros = await client.GetStringAsync($"{urlLimpia}listar_fotos_directorio.php?codigo={codigo}&tipo=rostros");
                     var respuestaFamilias = await client.GetStringAsync($"{urlLimpia}listar_fotos_directorio.php?codigo={codigo}&tipo=familiares");
 
-                    // 4. INYECCIÓN FLUIDA DE LOTES EN EL HILO PRINCIPAL (CORREGIDO PARA TU XAML)
+                    // 4. INYECCIÓN FLUIDA DE LOTES EN EL HILO PRINCIPAL
                     Application.Current.Dispatcher.Invoke(() =>
                     {
-                        // Vaciamos por completo las listas visuales ligadas por RelativeSource al DataGrid
                         ListaRostrosDisponibles.Clear();
                         ListaFamiliaresDisponibles.Clear();
 
-                        // 📸 PROCESAMIENTO ATÓMICO DE ROSTROS
                         if (!string.IsNullOrWhiteSpace(respuestaRostros))
                         {
                             var archivosRostros = respuestaRostros.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
                             var conjuntoUnicoRostros = new System.Collections.Generic.HashSet<string> { "-- Ninguna --" };
-
                             foreach (var archivo in archivosRostros) conjuntoUnicoRostros.Add(archivo.Trim());
                             foreach (var item in conjuntoUnicoRostros) ListaRostrosDisponibles.Add(item);
                         }
@@ -1441,12 +1513,10 @@ namespace SmartAnuariosPro
                             ListaRostrosDisponibles.Add("-- Ninguna --");
                         }
 
-                        // 👨‍👩‍👧 PROCESAMIENTO ATÓMICO DE FAMILIARES
                         if (!string.IsNullOrWhiteSpace(respuestaFamilias))
                         {
                             var archivosFamilias = respuestaFamilias.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
                             var conjuntoUnicoFamilias = new System.Collections.Generic.HashSet<string> { "-- Ninguna --" };
-
                             foreach (var archivo in archivosFamilias) conjuntoUnicoFamilias.Add(archivo.Trim());
                             foreach (var item in conjuntoUnicoFamilias) ListaFamiliaresDisponibles.Add(item);
                         }
@@ -1455,38 +1525,69 @@ namespace SmartAnuariosPro
                             ListaFamiliaresDisponibles.Add("-- Ninguna --");
                         }
                     });
-
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"[HTTP SCAN ERROR 🚨] Falló la lectura de carpetas web: {ex.Message}");
+
+                    // 🛡️ ESCUDO DE RESPALDO: Si internet se cae (Error 503), inicializamos los combos con "-- Ninguna --"
+                    // para que la grilla cargue los datos locales sin colgar la UI de Alexander.
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        if (ListaRostrosDisponibles.Count == 0) ListaRostrosDisponibles.Add("-- Ninguna --");
+                        if (ListaFamiliaresDisponibles.Count == 0) ListaFamiliaresDisponibles.Add("-- Ninguna --");
+                    });
                 }
             }
 
-            // 5. REDIBUJADO ATÓMICO DEL CONTEXTO DEL DATAGRID
+            // 5. REDIBUJADO ATÓMICO CON CONVERSIÓN A OBSERVABLECOLLECTION ANTI-CONGELAMIENTO
+            _isSincronizandoUI = true;
             GridEdicionColegio.ItemsSource = null;
             GridEdicionColegio.AutoGenerateColumns = false;
-
-            // El DataContext es vital para que las columnas encuentren las colecciones ListaRostrosDisponibles
             GridEdicionColegio.DataContext = this;
-
-            // Forzamos al motor a limpiar layouts anteriores
             GridEdicionColegio.UpdateLayout();
 
-            GridEdicionColegio.ItemsSource = alumnosNube;
+            // ✨ EL ENGRANAJE FINAL: Encapsulamos la inyección en el hilo principal de la pantalla
+            var coleccionObservable = new System.Collections.ObjectModel.ObservableCollection<AlumnoRemoteModel>(alumnosNube);
+
+            App.Current.Dispatcher.Invoke(() =>
+            {
+                GridEdicionColegio.ItemsSource = null; // Purgamos el carril visual anterior
+                GridEdicionColegio.ItemsSource = coleccionObservable;
+                GridEdicionColegio.UpdateLayout(); // Forzamos el redibujado de las celdas oscuras
+            });
+
+            _isSincronizandoUI = false;
 
             // 📡 Activamos el radar en vivo para detectar cambios de los padres
             _colegioActualEnEdicion = colegioSeleccionado;
             _timerRadarEnVivo.Start();
 
-            // Sincronización del interruptor verde de la sección familiar
-            if (alumnosNube != null && alumnosNube.Count > 0 && alumnosNube[0].FotoFamiliar == "DESACTIVADO")
+            // 📡 SINCRONIZACIÓN CROMÁTICA DEL CONMUTADOR DE FOTOS FAMILIARES (PARTE 2)
+            if (alumnosNube != null && alumnosNube.Count > 0)
             {
-                BtnHabilitarFamiliarEdicion.Visibility = Visibility.Visible;
+                BtnHabilitarFamiliarEdicion.IsEnabled = true; // El botón se enciende y el XAML activa sus colores de producción
+
+                // Leemos la primera fila para saber si la promoción omitió la sección
+                if (alumnosNube[0].FotoFamiliar == "DESACTIVADO")
+                {
+                    BtnHabilitarFamiliarEdicion.Content = "🔓 Habilitar Sección Familiar";
+                    // Usamos la paleta de recursos para heredar el verde sin romper los disparadores del estilo
+                    BtnHabilitarFamiliarEdicion.Background = (SolidColorBrush)FindResource("VerdeExito");
+                }
+                else
+                {
+                    BtnHabilitarFamiliarEdicion.Content = "🔒 Desactivar Sección Familiar";
+                    BtnHabilitarFamiliarEdicion.Background = (SolidColorBrush)FindResource("RojoPeligro");
+                }
             }
             else
             {
-                BtnHabilitarFamiliarEdicion.Visibility = Visibility.Collapsed;
+                // Si no hay colegio en la mesa, lo bloqueamos. 
+                // El XAML interceptará el False y lo pintará de gris oscuro de inmediato.
+                BtnHabilitarFamiliarEdicion.IsEnabled = false;
+                BtnHabilitarFamiliarEdicion.Content = "🔒 Sección Familiar";
+                BtnHabilitarFamiliarEdicion.ClearValue(Button.BackgroundProperty); // Limpia valores previos para dejar actuar al XAML
             }
         }
 
@@ -1541,7 +1642,6 @@ namespace SmartAnuariosPro
             TxtIngresarFotografo.Text = col.Fotografo;
         }
 
-        // 📌 PROCESADOR DE ENTRADA EN MEMORIA RAM (Inmune a InvalidOperationException)
         private async void GridEdicionColegio_CellEditEnding(object? sender, DataGridCellEditEndingEventArgs e)
         {
             // Esperamos un instante a que el framework procese el último carácter digitado
@@ -1549,6 +1649,14 @@ namespace SmartAnuariosPro
 
             if (e.Row.Item is AlumnoRemoteModel alumnoEditado)
             {
+                // 🛡️ REGLA SAGRADA DE ALEXANDER: Si la sección familiar de este alumno está excluida, 
+                // abortamos el volcado visual para que no se encienda la línea celeste fuerte de 4px.
+                if (alumnoEditado.IsFamiliarExcluido && e.Column.Header?.ToString() == "Foto Familiar")
+                {
+                    alumnoEditado.EstaSiendoEditadoLocal = false; // Nos aseguramos de mantenerla apagada
+                    return; // 🚫 Salida limpia inmediata: la barra azul no se dibuja
+                }
+
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     // Forzamos el volcado inmediato de los 3 bloques hacia FechaNacimiento en memoria
@@ -1560,6 +1668,7 @@ namespace SmartAnuariosPro
                 });
             }
         }
+
 
         // 🟢 CONTROLADOR LOGÍSTICO COMPARTIDO PARA EL COMBOBOX DE SEXO
         private void ComboBoxSexo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1679,42 +1788,45 @@ namespace SmartAnuariosPro
 
 
 
-        // 💾 ACTUALIZACIÓN MASIVA ASÍNCRONA CON RADAR DE PROGRESO AZUL
+        // 💾 ACTUALIZACIÓN MASIVA ASÍNCRONA CON RETRY POLICY Y AUDITORÍA INTEGRADA (UNIFICADO)
         private async void BtnAplicarCambiosMaestros_Click(object sender, RoutedEventArgs e)
         {
-            if (GridEdicionColegio.ItemsSource is not System.Collections.Generic.List<AlumnoRemoteModel> listaAlumnos)
+            // 1. Validamos la existencia física de la colección observable en el DataGrid oscuro
+            if (GridEdicionColegio.ItemsSource is not System.Collections.ObjectModel.ObservableCollection<AlumnoRemoteModel> listaAlumnos)
             {
                 MostrarNotificacionBanner("No hay datos cargados en la mesa para procesar.", false);
                 return;
             }
 
-            // 🛡️ REEMPLAZO SEGURO E INDEPENDIENTE: Lee el código directamente del búfer maestro de edición
+            // 2. Extracción perimetral segura del código del colegio en edición activa
             if (_colegioActualEnEdicion == null || string.IsNullOrEmpty(_colegioActualEnEdicion.CodigoColegio))
             {
                 MostrarNotificacionBanner("No se ha detectado una sesión de edición activa o válida.", false);
                 return;
             }
 
-            string codigoColegio = _colegioActualEnEdicion.CodigoColegio.Trim().ToLower();
+            string codigoColegio = _colegioActualEnEdicion.CodigoColegio.Trim();
 
-            // 🔒 Congelamos interfaz y preparamos los indicadores de la pestaña de edición
+            // 🔒 BLOQUEO MAESTRO ANTI-DOBLE CLIC: Congelamos los controles visuales de la Suite
             this.IsEnabled = false;
-            _timerRadarEnVivo.Stop(); // Pausa temporal para evitar colisiones en la escritura
+            _timerRadarEnVivo.Stop(); // Pausamos el temporizador en caliente para evitar colisiones de escritura
 
+            // Limpieza e inicialización de indicadores en la barra de progreso de edición
             RellenoAzulProgresoEdicion.Width = 0;
             TxtPorcentajeNumStatusEdicion.Text = "0.0%";
-            TxtFotoActualStatusEdicion.Text = "Actualizando correcciones en la Base de Datos...";
+            TxtFotoActualStatusEdicion.Text = "Conectando con StackCP e iniciando pipeline de actualización...";
 
             bool fallasBaseDatos = false;
             int totalAlumnos = listaAlumnos.Count;
             double anchoTotalCanal = FondoCanalProgresoEdicion.ActualWidth > 0 ? FondoCanalProgresoEdicion.ActualWidth : 450;
 
-            // 🧮 Canal de progreso para las actualizaciones en la nube
+            // 🧮 Canal de progreso thread-safe conectado al relleno azul de la fila inferior
             var progresoActualizacion = new Progress<int>(indiceActual =>
             {
                 double porcentaje = ((double)indiceActual / totalAlumnos) * 100;
                 RellenoAzulProgresoEdicion.Width = (porcentaje / 100.0) * anchoTotalCanal;
                 TxtPorcentajeNumStatusEdicion.Text = $"{porcentaje:F1}%";
+
                 if (indiceActual < totalAlumnos)
                 {
                     TxtFotoActualStatusEdicion.Text = $"Guardando alumno {indiceActual + 1} de {totalAlumnos}: {listaAlumnos[indiceActual].NombreCompleto}";
@@ -1722,7 +1834,7 @@ namespace SmartAnuariosPro
             });
 
             // =======================================================================
-            // 🛡️ ALGORITMO DE AUDITORÍA DE 3 VÍAS (CONCURRENCIA OPTIMISTA v2026)
+            // 🛡️ ALGORITMO DE AUDITORÍA DE 3 VÍAS + RETRY POLICY EN SEGUNDO PLANO
             // =======================================================================
             await Task.Run(async () =>
             {
@@ -1733,76 +1845,174 @@ namespace SmartAnuariosPro
                     reportero.Report(i);
                     var alVisual = listaAlumnos[i];
 
-                    // REGLA: Si la fila NO fue editada localmente (no tiene línea celeste), se guarda directo
-                    if (!alVisual.EstaSiendoEditadoLocal)
+                    // =======================================================================
+                    // 🧠 VALIDACIÓN AUTOMÁTICA DE REGISTRO COMPLETADO HÍBRIDO (v2026)
+                    // =======================================================================
+                    // Evaluamos detalladamente los campos obligatorios de demografía y textos
+                    bool tieneNombre = !string.IsNullOrWhiteSpace(alVisual.NombreCompleto) && alVisual.NombreCompleto != "NUEVO ALUMNO";
+                    bool tieneFecha = alVisual.FechaNacimiento.HasValue;
+                    bool tieneSexo = !string.IsNullOrWhiteSpace(alVisual.Sexo) && alVisual.Sexo != "-- Elige --" && alVisual.Sexo != "-";
+                    bool tieneHobbies = !string.IsNullOrWhiteSpace(alVisual.Hobbies) && alVisual.HobbiesFormateado != "⭐ Pref: Sin registrar";
+                    bool tieneComida = !string.IsNullOrWhiteSpace(alVisual.ComidaFav) && alVisual.ComidaFormateada != "🍖 Comida: -";
+                    bool tieneProfesion = !string.IsNullOrWhiteSpace(alVisual.Profesion);
+
+                    // Verificación del retrato principal de laboratorio
+                    bool tieneRostro = !string.IsNullOrWhiteSpace(alVisual.FotoRostro) && alVisual.FotoRostro != "-- Ninguna --" && alVisual.FotoRostro != "PENDIENTE";
+
+                    // 🔄 CONDICIONAL HÍBRIDO PARA LA SECCIÓN FAMILIAR
+                    // Si la columna dice 'DESACTIVADO' (por el botón Toggle), se considera válida de inmediato (0% exigencia)
+                    bool tieneFamiliar = alVisual.FotoFamiliar == "DESACTIVADO" ||
+                                        (!string.IsNullOrWhiteSpace(alVisual.FotoFamiliar) && alVisual.FotoFamiliar != "-- Ninguna --" && alVisual.FotoFamiliar != "PENDIENTE");
+
+                    // Si cumple todas las condiciones del nuevo pipeline, forzamos el "SI", de lo contrario se queda o regresa a "NO"
+                    if (tieneNombre && tieneFecha && tieneSexo && tieneHobbies && tieneComida && tieneProfesion && tieneRostro && tieneFamiliar)
                     {
-                        bool exitoDirecto = await AppBootstrap.Instance.Database.UpdateStudentFullDataAsync(alVisual);
-                        if (!exitoDirecto) fallasBaseDatos = true;
-                        continue;
-                    }
-
-                    // 🔍 SI TIENE LÍNEA CELESTE: Validamos la Nube en Vivo contra la instantánea Inicial
-                    var alNubeLive = await AppBootstrap.Instance.Database.ObtenerAlumnosPorColegioAsync(codigoColegio);
-                    var alNubeActual = alNubeLive.FirstOrDefault(a => a.Id == alVisual.Id);
-
-                    if (alNubeActual != null && _historialAlumnosEnEdicionLocal.TryGetValue(alVisual.Id, out var alInicial))
-                    {
-                        // Comparamos si el padre alteró Fotos, Sexo o Fecha Nacimiento en internet mientras tú editabas
-                        bool conflictoFotos = alNubeActual.FotoRostro != alInicial.FotoRostro || alNubeActual.FotoFamiliar != alInicial.FotoFamiliar;
-                        bool conflictoDemografia = alNubeActual.Sexo != alInicial.Sexo || alNubeActual.FechaNacimiento != alInicial.FechaNacimiento;
-
-                        if (conflictoFotos || conflictoDemografia)
+                        if (alVisual.Completado != "SI")
                         {
-                            // 🚨 CONFLICTO DETECTADO: Frenamos el pipeline y congelamos la fila crítica
-                            _conflictoDetectadoYBloqueado = true;
-                            fallasBaseDatos = true; // Evita que el flujo se declare exitoso aún
-
-                            Application.Current.Dispatcher.Invoke(() =>
-                            {
-                                // Liberamos los controles para que Alexander interactúe con el Banner de decisión
-                                this.IsEnabled = true;
-                                PanelCargandoEdicion.Visibility = Visibility.Collapsed;
-
-                                // Formateamos el reporte descriptivo de los cambios para el bloque de Alexander
-                                string txtAlexander = $"Rostro: {(string.IsNullOrEmpty(alVisual.FotoRostro) ? "Pendiente" : alVisual.FotoRostro)} | Sexo: {alVisual.Sexo}";
-                                // Formateamos el reporte descriptivo de los cambios del Padre
-                                string txtPadre = $"Rostro: {(string.IsNullOrEmpty(alNubeActual.FotoRostro) ? "Pendiente" : alNubeActual.FotoRostro)} | Sexo: {alNubeActual.Sexo}";
-
-                                TxtCambiosAlexander.Text = txtAlexander;
-                                TxtCambiosPadre.Text = txtPadre;
-
-                                // 🎨 Inyectamos la psicología de color #00528a de consulta con los nuevos botones premium
-                                BannerNotificacion.Background = (SolidColorBrush)FindResource("AzulConsultaMesa");
-                                TxtMensajeBanner.Foreground = Brushes.White;
-                                TxtMensajeBanner.Text = $"⚠️ CONFLICTO EN FILA {alVisual.NumeroOrden}: El padre de '{alVisual.NombreCompleto}' guardó cambios en la web mientras editabas. ¿Con cuáles deseas quedarte?";
-
-                                // Conmutamos las cajas visuales por hardware dentro de la misma pantalla
-                                GridComparacionConflicto.Visibility = Visibility.Visible;
-                                PanelAccionesConflicto.Visibility = Visibility.Visible;
-                                BtnCerrarBannerOrdinario.Visibility = Visibility.Collapsed;
-                                BannerNotificacion.Height = 65; // Ajuste para que entre la mesa de comparación
-
-                                // Enfocamos la fila en conflicto en el DataGrid oscuro
-                                GridEdicionColegio.SelectedItem = alVisual;
-                                GridEdicionColegio.ScrollIntoView(alVisual);
-                            });
-
-                            break; // Rompemos el bucle 'for' inmediatamente para no procesar más filas hasta resolver esta
+                            alVisual.Completado = "SI";
+                            alVisual.NotifyExternalPropertyChange(nameof(alVisual.Completado));
+                        }
+                    }
+                    else
+                    {
+                        if (alVisual.Completado != "NO")
+                        {
+                            alVisual.Completado = "NO";
+                            alVisual.NotifyExternalPropertyChange(nameof(alVisual.Completado));
                         }
                     }
 
-                    // Si no hubo conflicto con el padre, realizamos el commit seguro en MariaDB
-                    bool exitoSeguro = await AppBootstrap.Instance.Database.UpdateStudentFullDataAsync(alVisual);
-                    if (!exitoSeguro) fallasBaseDatos = true;
+                    // 🔄 SUBSISTEMA DE REINTENTOS PARA OPERACIONES REMOTAS (Continúa abajo tu código idéntico...)
+                    int intentoActual = 0;
+                    int maxReintentos = 3;
+                    bool guardadoFilaExitoso = false;
+
+                    while (intentoActual < maxReintentos && !guardadoFilaExitoso)
+                    {
+                        intentoActual++;
+                        try
+                        {
+                            // CASO A: Si es un alumno nuevo (Id == 0), se inyecta directamente
+                            if (alVisual.Id == 0)
+                            {
+                                var loteNuevo = new System.Collections.Generic.List<AlumnoRemoteModel> { alVisual };
+                                guardadoFilaExitoso = await AppBootstrap.Instance.Database.InsertarLoteAlumnosAsync(loteNuevo);
+                                if (guardadoFilaExitoso) alVisual.EstaSiendoEditadoLocal = false;
+                            }
+                            // CASO B: Si la fila NO fue editada localmente, se guarda directo (Ahora con su "SI" actualizado si corresponde)
+                            else if (!alVisual.EstaSiendoEditadoLocal)
+                            {
+                                guardadoFilaExitoso = await AppBootstrap.Instance.Database.UpdateStudentFullDataAsync(alVisual);
+                            }
+                            // CASO C: La fila fue editada localmente. Procedemos al Escudo de Auditoría
+                            else
+                            {
+                                // 🔍 Descargamos en vivo el estado actual de la nube para el cruce de datos
+                                var alNubeLive = await AppBootstrap.Instance.Database.ObtenerAlumnosPorColegioAsync(codigoColegio);
+                                var alNubeActual = alNubeLive.FirstOrDefault(a => a.Id == alVisual.Id);
+
+                                if (alNubeActual != null && _historialAlumnosEnEdicionLocal.TryGetValue(alVisual.Id, out var alInicial))
+                                {
+                                    // 🧼 FUNCIÓN QUIRÚRGICA LOCAL: Normaliza textos por defecto de la BD y la UI para el match
+                                    Func<string, string> normalizarFoto = (v) => {
+                                        if (string.IsNullOrWhiteSpace(v)) return "";
+                                        string limpio = v.Trim().ToUpper();
+                                        if (limpio == "PENDIENTE" || limpio == "EMERGENCIA" || limpio == "-- NINGUNA --" || limpio == "-") return "";
+                                        return limpio;
+                                    };
+
+                                    // Normalizamos los tres estados para fotos de Rostro y Familiar
+                                    string rostroNube = normalizarFoto(alNubeActual.FotoRostro);
+                                    string rostroInicial = normalizarFoto(alInicial.FotoRostro);
+
+                                    string familiarNube = normalizarFoto(alNubeActual.FotoFamiliar);
+                                    string familiarInicial = normalizarFoto(alInicial.FotoFamiliar);
+
+                                    // 🔬 EVALUACIÓN REAL DE CONFLICTOS FOTOGRÁFICOS Y DEMOGRÁFICOS
+                                    bool conflictoFotos = rostroNube != rostroInicial || familiarNube != familiarInicial;
+                                    bool conflictoDemografia = alNubeActual.Sexo != alInicial.Sexo || alNubeActual.FechaNacimiento != alInicial.FechaNacimiento;
+                                    bool conflictoTexto = alNubeActual.NombreCompleto != alInicial.NombreCompleto || alNubeActual.Hobbies != alInicial.Hobbies || alNubeActual.ComidaFav != alInicial.ComidaFav || alNubeActual.Profesion != alInicial.Profesion;
+
+                                    if (conflictoFotos || conflictoDemografia || conflictoTexto)
+                                    {
+                                        // 🚨 CONFLICTO REAL DETECTADO (Ahora sí, solo si el padre alteró la web de verdad)
+                                        _conflictoDetectadoYBloqueado = true;
+                                        guardadoFilaExitoso = false;
+                                        Application.Current.Dispatcher.Invoke(() =>
+                                        {
+                                            // Reactivamos la UI para interactuar con las opciones de solución
+                                            this.IsEnabled = true;
+                                            PanelCargandoEdicion.Visibility = Visibility.Collapsed;
+
+                                            // Volcamos los textos informativos en paralelo
+                                            string txtAlexander = $"Rostro: {(string.IsNullOrEmpty(alVisual.FotoRostro) ? "Ninguna" : alVisual.FotoRostro)} | Nombre: {alVisual.NombreCompleto}";
+                                            string txtPadre = $"Rostro: {(string.IsNullOrEmpty(alNubeActual.FotoRostro) ? "Ninguna" : alNubeActual.FotoRostro)} | Nombre: {alNubeActual.NombreCompleto}";
+
+                                            TxtCambiosAlexander.Text = txtAlexander;
+                                            TxtCambiosPadre.Text = txtPadre;
+
+                                            // Estilo interactivo azul para consulta con los botones premium
+                                            BannerNotificacion.Background = (SolidColorBrush)FindResource("AzulConsultaMesa");
+                                            TxtMensajeBanner.Foreground = Brushes.White;
+                                            TxtMensajeBanner.Text = $"⚠️ CONFLICTO EN FILA {alVisual.NumeroOrden}: El padre de '{alVisual.NombreCompleto}' guardó cambios en la web mientras editabas. ¿Con cuáles deseas quedarte?";
+
+                                            // Ajustamos la conmutación física por hardware de los componentes del banner
+                                            GridComparacionConflicto.Visibility = Visibility.Visible;
+                                            PanelAccionesConflicto.Visibility = Visibility.Visible;
+                                            PanelAccionesDestruccion.Visibility = Visibility.Collapsed;
+                                            BtnCerrarBannerOrdinario.Visibility = Visibility.Collapsed;
+                                            BannerNotificacion.Height = 65; // Ajuste ergonómico premium para el visor de datos
+
+                                            // Focalizamos al alumno crítico en tu DataGrid oscuro
+                                            GridEdicionColegio.SelectedItem = alVisual;
+                                            GridEdicionColegio.ScrollIntoView(alVisual);
+                                        });
+
+                                        break; // Rompe el 'while' de reintentos inmediatamente
+                                    }
+                                }
+
+                                // Si pasó el escudo de control sin conflictos, se ejecuta el guardado de datos regulares
+                                guardadoFilaExitoso = await AppBootstrap.Instance.Database.UpdateStudentFullDataAsync(alVisual);
+
+                                // Si se guardó correctamente en este intento, apagamos su interruptor visual celeste
+                                if (guardadoFilaExitoso)
+                                {
+                                    alVisual.EstaSiendoEditadoLocal = false;
+                                }
+                            }
+                        }
+                        catch (Exception exMySql)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[REINTENTO CONTROLADO ⚠️] Fila {alVisual.NumeroOrden} - Intento {intentoActual}/{maxReintentos} falló: {exMySql.Message}");
+
+                            if (intentoActual < maxReintentos)
+                            {
+                                await Task.Delay(500); // Pequeña pausa de asentamiento de red antes de volver a intentar
+                            }
+                        }
+                    }
+
+                    // Si tras los 3 intentos el hosting persistió en el error y no es conflicto, encendemos el sensor de fallas
+                    if (!guardadoFilaExitoso && !_conflictoDetectadoYBloqueado && alVisual.Id != 0)
+                    {
+                        fallasBaseDatos = true;
+                    }
+
+                    // Si se detectó un conflicto real en el paso C, salimos del ciclo de alumnos por completo
+                    if (_conflictoDetectadoYBloqueado)
+                    {
+                        break;
+                    }
                 }
 
                 if (!_conflictoDetectadoYBloqueado) reportero.Report(totalAlumnos);
             });
 
-            // Si se frenó el bucle por conflicto, salimos del método para esperar la decisión del operador
+            // Si el flujo se detuvo por un conflicto detectado, salimos de la función para esperar la decisión de tus botones
             if (_conflictoDetectadoYBloqueado) return;
 
-            // Paso 2: Subida física de imágenes EXTRA (Solo si el operador cargó archivos nuevos en los botones)
+            // Paso 3: Subida física de imágenes EXTRA (Solo si el operador cargó archivos nuevos en los botones)
             bool fallasArchivos = false;
             if (_fotosRostrosNuevas.Count > 0 || _fotosFamiliasNuevas.Count > 0)
             {
@@ -1823,7 +2033,7 @@ namespace SmartAnuariosPro
                 if (!rostrosExtraSubidos || !familiaresExtraSubidos) fallasArchivos = true;
             }
 
-            // 🔓 Liberación y reanudación del radar
+            // 🔓 Liberación final de controles y reanudación segura del radar en vivo
             this.IsEnabled = true;
             _timerRadarEnVivo.Start();
 
@@ -1835,10 +2045,10 @@ namespace SmartAnuariosPro
             {
                 MostrarNotificacionBanner("¡Matriz de datos y archivos extras actualizados con éxito en la nube!", true);
 
-                // Esperamos los 4 segundos acordados para que leas el mensaje del 100% de la barra azul
+                // Esperamos los 4 segundos para la lectura del 100% en la barra azul
                 await Task.Delay(4000);
 
-                // ⚡ LA PURGA QUIRÚRGICA: Limpiamos todo el entorno para reiniciar el ciclo
+                // ⚡ LA PURGA QUIRÚRGICA: Limpiamos y restablecemos la mesa de edición a estado cero
                 LimpiarMesaEdicionPostGuardado();
 
                 // Devolvemos la barra azul a 0% de forma segura para el próximo colegio
@@ -1848,15 +2058,16 @@ namespace SmartAnuariosPro
             }
             else
             {
+                // 🔴 Solo se activa si tras los 3 intentos automáticos por fila el servidor siguió fallando
                 MostrarNotificacionBanner("Sincronización completada con advertencias de red en StackCP.", false);
 
-                // Si falló, también limpiamos la barra tras un retraso para no dejar congelada la UI
                 await Task.Delay(4000);
                 RellenoAzulProgresoEdicion.Width = 0;
                 TxtPorcentajeNumStatusEdicion.Text = "0%";
                 TxtFotoActualStatusEdicion.Text = "Mesa de edición lista para sincronizar...";
             }
         }
+
 
         // 🟢 PROCESADOR MAESTRO DE RESOLUCIÓN DE CONFLICTOS EN CALIENTE (AUDITORÍA v2026)
         private async void BtnResolucionConflicto_Click(object sender, RoutedEventArgs e)
@@ -1933,63 +2144,151 @@ namespace SmartAnuariosPro
             }
         }
 
+        // 💻 CONTROLADOR DINÁMICO DE SECCIÓN FAMILIAR CON SISTEMA ANTI-CORRUPCIÓN DE CACHÉ
         private void BtnHabilitarFamiliarEdicion_Click(object sender, RoutedEventArgs e)
         {
-            if (GridEdicionColegio.ItemsSource is not System.Collections.Generic.List<AlumnoRemoteModel> listaAlumnos || _colegioActualEnEdicion == null)
+            if (GridEdicionColegio.ItemsSource is not System.Collections.ObjectModel.ObservableCollection<AlumnoRemoteModel> listaAlumnos || listaAlumnos.Count == 0)
+            {
+                MostrarNotificacionBanner("No hay alumnos cargados en la mesa para modificar la sección.", false);
                 return;
+            }
 
-            // 🔓 REVERSIÓN DINÁMICA SIN MESSAGEBOX: Ejecutamos el desbloqueo directo sobre la RAM
-            _isSincronizandoUI = true;
+            // Aseguramos el cierre de edición activa en celdas para evitar bloqueos
+            GridEdicionColegio.CommitEdit(System.Windows.Controls.DataGridEditingUnit.Row, true);
+
+            string textoBotonActual = BtnHabilitarFamiliarEdicion.Content?.ToString() ?? "";
+            bool quiereDesactivarAhora = textoBotonActual.Contains("Desactivar");
+
+            _isSincronizandoUI = true; // Candado de protección visual para WPF
             try
             {
                 foreach (var alumno in listaAlumnos)
                 {
-                    if (alumno.FotoFamiliar == "DESACTIVADO")
+                    if (quiereDesactivarAhora)
                     {
-                        // Limpiamos la bandera para devolver las celdas al estado "⏳ Pendiente"
-                        alumno.FotoFamiliar = "";
+                        // =======================================================================
+                        // 🔒 ACCIÓN 1: EXCLUIR SECCIÓN FAMILIAR
+                        // =======================================================================
+                        string familiarOriginal = alumno.FotoFamiliar ?? "";
+                        string familiarLimpia = familiarOriginal.Trim().ToUpper();
+
+                        if (!string.IsNullOrEmpty(familiarOriginal) && familiarLimpia != "PENDIENTE" &&
+                            familiarLimpia != "-- NINGUNA --" && familiarLimpia != "DESACTIVADO" && familiarLimpia != "EMERGENCIA")
+                        {
+                            _respaldoFotosFamiliaresMemoria[alumno.Id] = familiarOriginal;
+                        }
+
+                        // 🧠 SOLUCIÓN DE ALEXANDER:
+                        // 1. Apagamos el escudo de edición local para que la línea celeste se desvanezca en el acto
+                        alumno.EstaSiendoEditadoLocal = false;
+
+                        // 2. Activamos la exclusión para levantar el cartel rojo
+                        alumno.IsFamiliarExcluido = true;
+                        alumno.FotoFamiliar = "-- Ninguna --";
                     }
+                    else
+                    {
+                        // =======================================================================
+                        // 🔓 ACCIÓN 2: RE-HABILITAR SECCIÓN FAMILIAR
+                        // =======================================================================
+                        alumno.IsFamiliarExcluido = false;
+
+                        // Al volver a la vida, también nos aseguramos de que la línea azul empiece apagada
+                        alumno.EstaSiendoEditadoLocal = false;
+
+                        if (_respaldoFotosFamiliaresMemoria.TryGetValue(alumno.Id, out string? fotoRecuperada) && !string.IsNullOrEmpty(fotoRecuperada))
+                        {
+                            alumno.FotoFamiliar = fotoRecuperada;
+                        }
+                        else
+                        {
+                            alumno.FotoFamiliar = "-- Ninguna --";
+                        }
+                    }
+
+                    // Notificamos los tres cambios al motor gráfico de WPF
+                    alumno.NotifyExternalPropertyChange(nameof(alumno.FotoFamiliar));
+                    alumno.NotifyExternalPropertyChange(nameof(alumno.IsFamiliarExcluido));
+                    alumno.NotifyExternalPropertyChange(nameof(alumno.EstaSiendoEditadoLocal));
                 }
+            }
+            catch (Exception exToggle)
+            {
+                System.Diagnostics.Debug.WriteLine($"[TOGGLE COMPORTAMIENTO FATAL 🚨] {exToggle.Message}");
             }
             finally
             {
                 _isSincronizandoUI = false;
             }
 
-            // Ocultamos el botón verde de emergencia en caliente
-            BtnHabilitarFamiliarEdicion.Visibility = Visibility.Collapsed;
+            // =======================================================================
+            // 🎨 CONMUTACIÓN CROMÁTICA DE TU BOTÓN SUPERIOR INTEGRADO
+            // =======================================================================
+            if (quiereDesactivarAhora)
+            {
+                BtnHabilitarFamiliarEdicion.Content = "🔓 Habilitar Sección Familiar";
+                BtnHabilitarFamiliarEdicion.Background = (SolidColorBrush)FindResource("VerdeExito");
+                MostrarNotificacionBanner("🚫 Sección familiar excluida. Combos en '-- Ninguna --' bloqueados con cartel activo.", true);
+            }
+            else
+            {
+                BtnHabilitarFamiliarEdicion.Content = "🔒 Desactivar Sección Familiar";
+                BtnHabilitarFamiliarEdicion.Background = (SolidColorBrush)FindResource("RojoPeligro");
+                MostrarNotificacionBanner("🔓 Sección familiar reactivada. Se restauraron los registros del búfer.", true);
+            }
 
-            // Forzamos el redibujado atómico de las celdas en el DataGrid oscuro
-            GridEdicionColegio.ItemsSource = null;
-            GridEdicionColegio.ItemsSource = listaAlumnos;
-
-            // Informamos al operador técnico usando el componente nativo de la suite
-            MostrarNotificacionBanner("🔓 Sección familiar reactivada en la grilla visual. Aplique los cambios para actualizar la nube.", true);
+            // 🧠 SOLUCIÓN DE RE-RENDERIZADO FLUIDO: Ordenamos redibujar el layout visual
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                GridEdicionColegio.UpdateLayout();
+            }, System.Windows.Threading.DispatcherPriority.Render);
         }
 
 
-
+        // =======================================================================
+        // ＋ INYECCIÓN EN CALIENTE DE NUEVAS FILAS CELESTES EN EL DATAGRID OSCURO
+        // =======================================================================
         private void BtnAnadirFilaEdicion_Click(object sender, RoutedEventArgs e)
         {
-            if (GridEdicionColegio.ItemsSource is System.Collections.Generic.List<AlumnoRemoteModel> listaActual)
+            // 1. Recuperamos la colección real enlazada debidamente casteada a ObservableCollection
+            if (GridEdicionColegio.ItemsSource is not System.Collections.ObjectModel.ObservableCollection<AlumnoRemoteModel> listaActual)
             {
-                int nuevoOrden = listaActual.Count > 0 ? listaActual.Max(a => a.NumeroOrden) + 1 : 1;
-
-                var nuevoAlumno = new AlumnoRemoteModel
-                {
-                    NumeroOrden = nuevoOrden,
-                    NombreCompleto = "AÑADIR NOMBRE COMPLETO",
-                    FechaNacimiento = null,
-                    Sexo = "-- Elige --",
-                    CodigoColegio = _colegioActualEnEdicion?.CodigoColegio ?? ""
-                };
-
-                listaActual.Add(nuevoAlumno);
-                GridEdicionColegio.ItemsSource = null;
-                GridEdicionColegio.ItemsSource = listaActual;
-                GridEdicionColegio.ScrollIntoView(nuevoAlumno);
+                System.Diagnostics.Debug.WriteLine("[AÑADIR ERROR 🚨] El ItemsSource no es una ObservableCollection válida.");
+                return;
             }
+
+            // 2. Calculamos el siguiente número correlativo de orden para el salón
+            int siguienteOrden = listaActual.Count + 1;
+
+            // 3. Inicializamos el nuevo registro en Estado Cero respetando tu base de datos limpia
+            var nuevoAlumno = new AlumnoRemoteModel
+            {
+                Id = 0, // Indica inyección nueva a insertar en el ApplyChanges maestro
+                SeccionId = listaActual.Count > 0 ? listaActual[0].SeccionId : 0,
+                CodigoColegio = _colegioActualEnEdicion?.CodigoColegio ?? string.Empty,
+                NumeroOrden = siguienteOrden,
+                NombreCompleto = "NUEVO ALUMNO",
+                Sexo = "-",
+                Hobbies = "",
+                ComidaFav = "",
+                Profesion = "",
+                FotoRostro = "",      // XAML activará el cartel "⏳ Pendiente" automáticamente
+                FotoFamiliar = "",    // XAML activará el cartel "⏳ Pendiente" automáticamente
+                Completado = "NO",
+                AccesoLiberado = 1,
+                EstaSiendoEditadoLocal = true // Enciende tu franja celeste vertical y congela el radar para esta fila
+            };
+
+            // 4. Lo inyectamos a la RAM y la grilla lo dibuja al instante en pantalla sin parpadeos
+            listaActual.Add(nuevoAlumno);
+
+            // Hacemos scroll automático en el DataGrid para mostrar la nueva fila abajo del todo
+            GridEdicionColegio.ScrollIntoView(nuevoAlumno);
+            GridEdicionColegio.SelectedItem = nuevoAlumno;
+
+            System.Diagnostics.Debug.WriteLine($"[NUEVO ALUMNO RAM ✓] Fila correlativa N° {siguienteOrden} inyectada y lista para edición.");
         }
+
 
         private async void BtnCambiarEstadoAcceso_Click(object sender, RoutedEventArgs e)
         {
@@ -2042,17 +2341,30 @@ namespace SmartAnuariosPro
             }
         }
 
+        // =======================================================================
+        // 🗑️ JUBILACIÓN DE WINDOWS BLANCO: INTEGRACIÓN NATIVA AL BANNER INDUSTRIAL
+        // =======================================================================
         private void BtnEliminarFila_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button boton && boton.DataContext is AlumnoRemoteModel alumno)
             {
-                var conf = MessageBox.Show($"¿Desea quitar a '{alumno.NombreCompleto}' de la grilla de edición?\n\n*Nota: El cambio impactará en el hosting al hacer clic en el botón inferior de Actualizar.", "Eliminar Fila", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-                if (conf == MessageBoxResult.Yes && GridEdicionColegio.ItemsSource is System.Collections.Generic.List<AlumnoRemoteModel> lista)
-                {
-                    lista.Remove(alumno);
-                    GridEdicionColegio.ItemsSource = null;
-                    GridEdicionColegio.ItemsSource = lista;
-                }
+                // Almacenamos el alumno objetivo en el búfer interactivo del banner
+                _alumnoPorQuitarGrilla = alumno;
+                _esperandoConfirmacionQuitarFila = true;
+
+                // Cambiamos el color de fondo a un Rojo Óxido / Peligro (#7A1C1C) para alertar destrucción de fila
+                BannerNotificacion.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#7A1C1C"));
+                TxtMensajeBanner.Foreground = Brushes.White;
+                BtnCerrarBannerOrdinario.Foreground = Brushes.White;
+
+                TxtMensajeBanner.Text = $"⚠️ ¿Desea quitar a '{alumno.NombreCompleto}' de la grilla de edición? " +
+                                       $"(El cambio impactará en el hosting al hacer clic en el botón inferior de Actualizar).";
+
+                // Revelamos la botonera de confirmación y ocultamos la equis genérica
+                PanelAccionesDestruccion.Visibility = Visibility.Visible;
+                BtnCerrarBannerOrdinario.Visibility = Visibility.Collapsed;
+
+                BannerNotificacion.Height = 55; // Despliegue ergonómico estándar
             }
         }
 
@@ -2285,17 +2597,25 @@ namespace SmartAnuariosPro
                 MostrarNotificacionBanner("🔓 Sección familiar reactivada en la grilla visual. Guarde cambios para aplicar.", true);
             }
 
-            // --- CASO 3: CONFIRMACIÓN DE QUITAR FILA DEL DATAGRID ---
+            // --- CASO 3: CONFIRMACIÓN DE QUITAR FILA DEL DATAGRID (ROJO ÓXIDO PREMIUM) ---
             else if (_esperandoConfirmacionQuitarFila && _alumnoPorQuitarGrilla != null)
             {
                 _esperandoConfirmacionQuitarFila = false;
-                if (GridEdicionColegio.ItemsSource is System.Collections.Generic.List<AlumnoRemoteModel> lista)
+
+                // Capturamos el origen de datos real de edición mapeado como ObservableCollection
+                if (GridEdicionColegio.ItemsSource is System.Collections.ObjectModel.ObservableCollection<AlumnoRemoteModel> lista)
                 {
                     lista.Remove(_alumnoPorQuitarGrilla);
-                    GridEdicionColegio.ItemsSource = null;
-                    GridEdicionColegio.ItemsSource = lista;
+
+                    // El radar e interfaz se notifican automáticamente sin necesidad de destruir/reconstruir el origen de datos
                     MostrarNotificacionBanner($"Fila de '{_alumnoPorQuitarGrilla.NombreCompleto}' removida de la sesión actual.", true);
                 }
+
+                // Ocultamos el panel interactivo y restauramos la equis del banner
+                BannerNotificacion.Height = 0;
+                PanelAccionesDestruccion.Visibility = Visibility.Collapsed;
+                BtnCerrarBannerOrdinario.Visibility = Visibility.Visible;
+
                 _alumnoPorQuitarGrilla = null;
             }
         }
@@ -2452,6 +2772,7 @@ namespace SmartAnuariosPro
             CboReporteColegiosLista.DisplayMemberPath = "NombreColegio";
         }
 
+        // 📋 GENERACIÓN ASÍNCRONA DE REPORTES CON CLONACIÓN EN RUTAS EN ESPEJO EXACTAS (CORREGIDO)
         private async void BtnGenerarReporte_Click(object sender, RoutedEventArgs e)
         {
             // 1. Verificación de selección segura mediante el ComboBox del Modo Oscuro
@@ -2461,21 +2782,126 @@ namespace SmartAnuariosPro
                 return;
             }
 
-            // Congelamos la ventana para mitigar peticiones duplicadas en red
+            // Congelamos la ventana para mitigar peticiones duplicadas y clics fantasmas
             this.IsEnabled = false;
+
+            // Extraemos la raíz exacta desde tu campo de texto o bootstrap
+            string carpetaMaestraEnVivo = TxtRutaCarpetaMaestra?.Text?.Trim() ?? AppBootstrap.Instance.Paths.BaseMasterPath ?? "D:\\Anuarios2026";
 
             try
             {
-                // 2. Descarga remota asíncrona de la nómina extendida desde MariaDB
+                // 2. Descarga remota asíncrona de la nómina extendida desde MariaDB StackCP
                 var datosVotacion = await AppBootstrap.Instance.Database.ObtenerAlumnosPorColegioAsync(colegioSeleccionado.CodigoColegio);
 
-                // 3. Inyección limpia en la grilla visual de auditoría masiva
-                GridReporteElecciones.ItemsSource = datosVotacion;
+                if (datosVotacion == null || datosVotacion.Count == 0)
+                {
+                    MostrarNotificacionBanner("⚠️ No se encontraron alumnos registrados para este colegio en la nube.", false);
+                    this.IsEnabled = true;
+                    return;
+                }
 
-                MostrarNotificacionBanner($"📊 Reporte generado con éxito. {datosVotacion.Count} alumnos sincronizados.", true);
+                // 3. 🚀 SUBSISTEMA DE DESCARGA PREVENTIVA UTILIZANDO RUTAS DINÁMICAS POR ALUMNO
+                await Task.Run(async () =>
+                {
+                    using (var clienteWeb = new System.Net.Http.HttpClient())
+                    {
+                        clienteWeb.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+
+                        foreach (var alumno in datosVotacion)
+                        {
+                            // 🧠 CLAVE: Usamos el PathResolverService para formatear el código y limpiar textos en caliente
+                            string fotografoAlumno = string.IsNullOrWhiteSpace(alumno.Fotografo) ? "Fotógrafo" : alumno.Fotografo.Trim();
+                            string codigoAlumnoFormateado = SmartAnuariosPro.Services.PathResolverService.FormatearCodigoColegio(alumno.CodigoColegio);
+
+                            // A. CONCATENACIÓN Y ESCUDO PARA FOTO ROSTRO
+                            string rostroArchivo = alumno.FotoRostro?.Trim() ?? string.Empty;
+                            string rostroLimpio = rostroArchivo.ToUpper();
+
+                            if (!string.IsNullOrEmpty(rostroArchivo) && rostroLimpio != "PENDIENTE" &&
+                                rostroLimpio != "EMERGENCIA" && rostroLimpio != "-- NINGUNA --" && rostroLimpio != "-")
+                            {
+                                // 🛠️ CONCATENACIÓN DINÁMICA: Sigue la ruta exacta de la base de datos de cada alumno
+                                string rutaLocalRostro = System.IO.Path.Combine(carpetaMaestraEnVivo, fotografoAlumno, codigoAlumnoFormateado, "Fotos Por Escoger", "Individuales", rostroArchivo);
+
+                                if (!System.IO.File.Exists(rutaLocalRostro))
+                                {
+                                    try
+                                    {
+                                        string urlDescargaRostro = $"https://pixeleduca.com/SmartAnuarios/Fotos/{codigoAlumnoFormateado}/rostros/{rostroArchivo}";
+                                        byte[] bytesRemotos = await clienteWeb.GetByteArrayAsync(urlDescargaRostro);
+
+                                        if (bytesRemotos != null && bytesRemotos.Length > 4)
+                                        {
+                                            string? dirContenedor = System.IO.Path.GetDirectoryName(rutaLocalRostro);
+                                            if (!string.IsNullOrEmpty(dirContenedor) && !System.IO.Directory.Exists(dirContenedor))
+                                                System.IO.Directory.CreateDirectory(dirContenedor);
+
+                                            await System.IO.File.WriteAllBytesAsync(rutaLocalRostro, bytesRemotos);
+                                            System.Diagnostics.Debug.WriteLine($"[REPORTE CLONADO ✓] Rostro guardado en: {rutaLocalRostro}");
+                                        }
+                                    }
+                                    catch (Exception exNet)
+                                    {
+                                        System.Diagnostics.Debug.WriteLine($"[REPORTE ALERTA] Falló clonar rostro {rostroArchivo}: {exNet.Message}");
+                                    }
+                                }
+                            }
+
+                            // B. CONCATENACIÓN Y ESCUDO PARA FOTO FAMILIAR
+                            string familiarArchivo = alumno.FotoFamiliar?.Trim() ?? string.Empty;
+                            string familiarLimpia = familiarArchivo.ToUpper();
+
+                            if (!string.IsNullOrEmpty(familiarArchivo) && familiarLimpia != "PENDIENTE" &&
+                                familiarLimpia != "EMERGENCIA" && familiarLimpia != "-- NINGUNA --" &&
+                                familiarLimpia != "-" && familiarLimpia != "DESACTIVADO")
+                            {
+                                // 🛠️ CONCATENACIÓN DINÁMICA: Sigue la ruta exacta de la base de datos de cada alumno
+                                string rutaLocalFamiliar = System.IO.Path.Combine(carpetaMaestraEnVivo, fotografoAlumno, codigoAlumnoFormateado, "Fotos Por Escoger", "Familiares", familiarArchivo);
+
+                                if (!System.IO.File.Exists(rutaLocalFamiliar))
+                                {
+                                    try
+                                    {
+                                        string urlDescargaFamiliar = $"https://pixeleduca.com/SmartAnuarios/Fotos/{codigoAlumnoFormateado}/familiares/{familiarArchivo}";
+                                        byte[] bytesRemotos = await clienteWeb.GetByteArrayAsync(urlDescargaFamiliar);
+
+                                        if (bytesRemotos != null && bytesRemotos.Length > 4)
+                                        {
+                                            string? dirContenedor = System.IO.Path.GetDirectoryName(rutaLocalFamiliar);
+                                            if (!string.IsNullOrEmpty(dirContenedor) && !System.IO.Directory.Exists(dirContenedor))
+                                                System.IO.Directory.CreateDirectory(dirContenedor);
+
+                                            await System.IO.File.WriteAllBytesAsync(rutaLocalFamiliar, bytesRemotos);
+                                            System.Diagnostics.Debug.WriteLine($"[REPORTE CLONADO ✓] Familiar guardado en: {rutaLocalFamiliar}");
+                                        }
+                                    }
+                                    catch (Exception exNet)
+                                    {
+                                        System.Diagnostics.Debug.WriteLine($"[REPORTE ALERTA] Falló clonar familiar {familiarArchivo}: {exNet.Message}");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // 4. INYECCIÓN LIMPIA EN EL DATAGRID DE REPORTE
+                _isSincronizandoUI = true;
+                GridReporteElecciones.ItemsSource = null;
+                GridReporteElecciones.UpdateLayout();
+
+                var coleccionObservableReporte = new System.Collections.ObjectModel.ObservableCollection<AlumnoRemoteModel>(datosVotacion);
+                GridReporteElecciones.ItemsSource = coleccionObservableReporte;
+                GridReporteElecciones.UpdateLayout();
+
+                _isSincronizandoUI = false;
+
+                MostrarNotificacionBanner($"📊 Reporte generado con éxito. {datosVotacion.Count} alumnos sincronizados con imágenes.", true);
             }
             catch (Exception ex)
             {
+                _isSincronizandoUI = false;
+                System.Diagnostics.Debug.WriteLine($"[REPORT GENERATE FATAL 🚨] Falló el procesado: {ex.Message}");
                 MostrarNotificacionBanner($"❌ Fallo al descargar reporte desde StackCP: {ex.Message}", false);
             }
             finally
@@ -2483,6 +2909,7 @@ namespace SmartAnuariosPro
                 this.IsEnabled = true;
             }
         }
+
 
         private void BtnExportarExcelAdministrativo_Click(object? sender, RoutedEventArgs e)
         {
